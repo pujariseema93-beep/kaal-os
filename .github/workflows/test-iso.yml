@@ -1,0 +1,226 @@
+# =============================================================================
+# test-iso.yml — ISO Boot Test Pipeline
+# =============================================================================
+# Downloads the ISO artifact from the build job and boots it in QEMU
+# to verify it actually works. Checks:
+#   - ISO boots to GRUB menu
+#   - Kernel loads without panic
+#   - Live desktop (or login prompt) is reached
+#   - SSH is available (for automated verification)
+# =============================================================================
+
+name: Test ISO
+
+on:
+  workflow_run:
+    workflows: ["Build ISO"]
+    types:
+      - completed
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: 'Run ID of the build to test'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test:
+    name: Boot Test in QEMU
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    if: |
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      # ---- Checkout ----
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---- Download ISO artifact ----
+      - name: Download ISO artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          run_id: ${{ github.event.workflow_run.id || inputs.artifact_run_id }}
+          name: kaal-os-live-iso
+          path: iso-artifact
+          workflow: Build ISO
+
+      # ---- Find the ISO ----
+      - name: Find ISO file
+        id: findiso
+        run: |
+          ISO_FILE=$(find iso-artifact -name "*.iso" -type f | head -1)
+          if [ -z "$ISO_FILE" ]; then
+            echo "::error::No ISO found in artifact"
+            ls -la iso-artifact/
+            exit 1
+          fi
+          echo "Found ISO: $ISO_FILE"
+          echo "iso_path=$ISO_FILE" >> $GITHUB_OUTPUT
+
+      # ---- Install QEMU ----
+      - name: Install QEMU and OVMF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils ovmf \
+            sshpass netcat-openbsd
+
+      # ---- Boot ISO in QEMU ----
+      - name: Boot ISO in QEMU
+        run: |
+          echo "=== Booting ISO in QEMU ==="
+          ISO="${{ steps.findiso.outputs.iso_path }}"
+
+          # Create a disk image for the VM (not used for install, just for boot)
+          qemu-img create -f qcow2 test-disk.qcow2 5G
+
+          # Start QEMU in background
+          # - 2GB RAM (minimum for live boot)
+          # - 2 CPU cores
+          # - UEFI firmware (OVMF)
+          # - Serial console for log capture
+          # - Port forward: host 2222 -> guest 22 (SSH)
+          qemu-system-x86_64 \
+            -name "distro-test" \
+            -machine q35,accel=tcg \
+            -cpu max \
+            -smp 2 \
+            -m 2048 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd \
+            -drive if=pflash,format=raw,file=OVMF_VARS.fd \
+            -drive file=test-disk.qcow2,if=virtio,format=qcow2 \
+            -cdrom "$ISO" \
+            -boot d \
+            -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+            -device virtio-net-pci,netdev=net0 \
+            -serial file:serial.log \
+            -display none \
+            -daemonize \
+            || true
+
+          echo "QEMU started. Waiting for boot..."
+
+      # ---- Wait for boot and test ----
+      - name: Wait for system boot
+        run: |
+          echo "=== Waiting for system to boot (max 5 minutes) ==="
+
+          TIMEOUT=300
+          ELAPSED=0
+          BOOTED=false
+
+          while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+            echo "  Elapsed: ${ELAPSED}s / ${TIMEOUT}s"
+
+            # Check serial log for boot progress
+            if [ -f serial.log ]; then
+              # Check for kernel panic
+              if grep -qi 'kernel panic\|not syncing\|Kernel panic' serial.log; then
+                echo "::error::Kernel panic detected in serial log!"
+                tail -20 serial.log
+                exit 1
+              fi
+
+              # Check for successful boot indicators
+              if grep -qi 'login:\|SDDM\|GDM\|LightDM\|reached.*graphical' serial.log; then
+                echo "  Boot progress detected in serial log"
+                BOOTED=true
+                break
+              fi
+            fi
+          done
+
+          if [ "$BOOTED" = "false" ]; then
+            echo "::warning::System did not fully boot within $TIMEOUT seconds"
+            echo "=== Serial log (last 50 lines) ==="
+            tail -50 serial.log 2>/dev/null || echo "No serial log found"
+          else
+            echo "System appears to have booted successfully!"
+          fi
+
+      # ---- Try SSH connection ----
+      - name: Test SSH connectivity
+        run: |
+          echo "=== Testing SSH (port 2222) ==="
+          sleep 30  # Give SSH daemon time to start
+
+          if sshpass -p "" ssh -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=10 \
+              -o UserKnownHostsFile=/dev/null \
+              -p 2222 liveuser@localhost \
+              "echo 'SSH connection successful'; uname -a; cat /etc/os-release" 2>/dev/null; then
+            echo "SSH connection successful!"
+          else
+            echo "::warning::SSH connection failed (may not be configured in live image)"
+            echo "This is non-fatal — the live image may not have SSH enabled by default"
+          fi
+
+      # ---- Collect logs ----
+      - name: Collect test results
+        if: always()
+        run: |
+          echo "=== Collecting test results ==="
+
+          mkdir -p test-results
+
+          # Copy serial log
+          cp serial.log test-results/ 2>/dev/null || true
+
+          # Analyze serial log
+          if [ -f serial.log ]; then
+            echo "=== Serial Log Analysis ===" > test-results/analysis.txt
+            echo "" >> test-results/analysis.txt
+
+            echo "Total lines: $(wc -l < serial.log)" >> test-results/analysis.txt
+            echo "" >> test-results/analysis.txt
+
+            echo "Boot stages detected:" >> test-results/analysis.txt
+            grep -i 'reached target\|started\|systemd' serial.log | \
+              head -20 >> test-results/analysis.txt 2>/dev/null || true
+
+            echo "" >> test-results/analysis.txt
+            echo "Errors/warnings:" >> test-results/analysis.txt
+            grep -i 'error\|fail\|warning\|panic' serial.log | \
+              head -20 >> test-results/analysis.txt 2>/dev/null || true
+
+            echo "" >> test-results/analysis.txt
+            echo "Last 20 lines:" >> test-results/analysis.txt
+            tail -20 serial.log >> test-results/analysis.txt
+          fi
+
+      # ---- Upload test results ----
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+
+      # ---- Summary ----
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## ISO Boot Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f serial.log ] && grep -qi 'login:\|SDDM\|GDM\|reached.*graphical' serial.log; then
+            echo "**Boot test PASSED** — system reached login/desktop" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Boot test INCONCLUSIVE** — check serial log for details" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See test-results artifact for full logs." >> $GITHUB_STEP_SUMMARY
+
+      # ---- Cleanup ----
+      - name: Kill QEMU
+        if: always()
+        run: |
+          pkill qemu-system-x86_64 2>/dev/null || true

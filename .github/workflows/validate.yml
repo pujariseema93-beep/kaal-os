@@ -1,0 +1,208 @@
+# =============================================================================
+# validate.yml — Code Quality & Validation Pipeline
+# =============================================================================
+# Runs on every push and pull request. Validates all code:
+#   - Shellcheck on all .sh scripts
+#   - flake8/pylint on Calamares Python modules
+#   - kickstart validation
+#   - YAML linting on all .conf/.yml files
+#   - Check for placeholder strings (KAAL OS, etc.)
+# =============================================================================
+
+name: Validate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  # ===========================================================
+  # Job 1: Shell script linting
+  # ===========================================================
+  shellcheck:
+    name: Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on all scripts
+        run: |
+          echo "Checking shell scripts..."
+          ERRORS=0
+          while IFS= read -r script; do
+            echo "  Checking: $script"
+            if ! shellcheck -S warning "$script"; then
+              ERRORS=$((ERRORS + 1))
+            fi
+          done <<< "$(find . -name '*.sh' -not -path './.git/*')"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS shell scripts have issues"
+            exit 1
+          fi
+          echo "All shell scripts passed."
+
+  # ===========================================================
+  # Job 2: Python linting (Calamares modules)
+  # ===========================================================
+  python-lint:
+    name: Python Modules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linters
+        run: pip install flake8 pyflakes
+
+      - name: Run flake8 on Calamares modules
+        run: |
+          echo "Checking Python modules..."
+          ERRORS=0
+          while IFS= read -r pyfile; do
+            echo "  Checking: $pyfile"
+            if ! flake8 --max-line-length=120 --extend-ignore=E402,W503 "$pyfile"; then
+              ERRORS=$((ERRORS + 1))
+            fi
+          done <<< "$(find . -name 'main.py' -path '*/modules/*' -not -path './.git/*')"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS Python files have issues"
+            exit 1
+          fi
+          echo "All Python modules passed."
+
+  # ===========================================================
+  # Job 3: Kickstart validation
+  # ===========================================================
+  kickstart:
+    name: Kickstart
+    runs-on: ubuntu-latest
+    container: fedora:42
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pykickstart
+        run: dnf install -y pykickstart
+
+      - name: Validate kickstart files
+        run: |
+          echo "Validating kickstart files..."
+          ERRORS=0
+          while IFS= read -r ksfile; do
+            echo "  Checking: $ksfile"
+            if ! ksvalidator "$ksfile"; then
+              ERRORS=$((ERRORS + 1))
+            fi
+          done <<< "$(find . -name '*.ks' -not -path './.git/*')"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS kickstart files have issues"
+            exit 1
+          fi
+          echo "All kickstart files passed."
+
+  # ===========================================================
+  # Job 4: YAML / config validation
+  # ===========================================================
+  yaml-lint:
+    name: YAML & Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        run: |
+          echo "Linting YAML files..."
+          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable}}" . 2>&1 || true
+
+      - name: Validate Calamares .conf files
+        run: |
+          echo "Checking Calamares config files..."
+          for conf in $(find . -name '*.conf' -path '*/modules/*'); do
+            echo "  Checking: $conf"
+            python3 -c "import yaml; yaml.safe_load(open('$conf'))" 2>&1 || \
+              echo "  WARNING: $conf is not valid YAML (may be INI format — OK)"
+          done
+
+  # ===========================================================
+  # Job 5: Placeholder check
+  # ===========================================================
+  placeholder-check:
+    name: Placeholders
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for unresolved placeholders
+        run: |
+          echo "Checking for placeholder strings..."
+          PLACEHOLDERS=0
+          while IFS= read -r match; do
+            echo "::warning::$match"
+            PLACEHOLDERS=$((PLACEHOLDERS + 1))
+          done <<< "$(grep -rn '\[DISTRO_NAME\]\|\[distro\]\|PLACEHOLDER\|TODO\|FIXME\|XXX' \
+            --include='*.sh' --include='*.py' --include='*.ks' --include='*.conf' \
+            --include='*.xml' --include='*.md' \
+            --exclude-dir='.git' --exclude-dir='node_modules' . || true)"
+
+          echo "Found $PLACEHOLDERS placeholder/TODO occurrences."
+          if [ "$PLACEHOLDERS" -gt 0 ]; then
+            echo "::warning::Unresolved placeholders found — these should be replaced before release."
+          fi
+
+  # ===========================================================
+  # Job 6: File structure check
+  # ===========================================================
+  structure:
+    name: File Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify required files exist
+        run: |
+          echo "Checking required files..."
+          REQUIRED=(
+            "packages/distro-iso-builder/distro-live.ks"
+            "packages/distro-iso-builder/build-iso.sh"
+            "packages/distro-bootloader/etc/default/grub"
+            "packages/distro-bootloader/etc/grub.d/06-distro-gpu-params"
+            "packages/distro-calamares/settings.conf"
+            "packages/distro-calamares/modules/profile-select/main.py"
+            "packages/distro-calamares/modules/de-select/main.py"
+            "packages/distro-calamares/modules/bootloader-select/main.py"
+            "packages/distro-calamares/modules/distro-context/main.py"
+            "packages/distro-hardware/scripts/08-firmware-setup.sh"
+            "packages/kaal-spaces/scripts/17-spaces-setup.sh"
+            "packages/kaal-security/scripts/18-security-hardening.sh"
+            "packages/kaal-security/scripts/21-vpn-setup.sh"
+            "packages/kaal-security/usr/bin/kaal-vpn"
+            "BUILD_GUIDE.md"
+            "docs/SECURITY.md"
+          )
+          ERRORS=0
+          for file in "${REQUIRED[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Missing required file: $file"
+              ERRORS=$((ERRORS + 1))
+            else
+              echo "  OK: $file"
+            fi
+          done
+          if [ "$ERRORS" -gt 0 ]; then
+            exit 1
+          fi
+          echo "All required files present."

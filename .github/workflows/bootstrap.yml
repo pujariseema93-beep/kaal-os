@@ -2,9 +2,10 @@
 # bootstrap.yml — one-shot: unpack the KAAL OS master archive into this repo
 # =============================================================================
 # Downloads KAAL_OS_MASTER_V6.zip from the 'bootstrap' release, unpacks the
-# full 202-file tree (packages/, docs/, BUILD_GUIDE.md, ...) on top of the
-# repository, and installs the CI workflows at .github/workflows/.
-# Safe to re-run: it overlays files and only commits if something changed.
+# full tree (packages/, docs/, BUILD_GUIDE.md, ...) on top of the repository,
+# and commits it. Workflows are NOT touched (the runner's GITHUB_TOKEN is not
+# allowed to create workflow files — they are pushed via the API).
+# Safe to re-run: overlays files and only commits if something changed.
 # =============================================================================
 
 name: Bootstrap repository content
@@ -44,18 +45,17 @@ jobs:
           gh release download "$RELEASE_TAG" --pattern "$ASSET_NAME" --output master.zip
           ls -lh master.zip
 
-      - name: Unpack tree and install workflows
+      - name: Unpack tree into repository
         run: |
           set -euxo pipefail
           rm -rf tree && mkdir tree
           unzip -q master.zip -d tree
           SRC="tree/distro-master"
           [ -d "$SRC" ] || SRC="tree"
-          # Overlay the whole master tree (do not touch .git or this workflow)
-          rsync -a --exclude '.git' "$SRC"/ ./
-          # Keep the bootstrapped workflows; add the four CI workflows at root
-          mkdir -p .github/workflows
-          cp -n packages/distro-ci/.github/workflows/*.yml .github/workflows/ 2>/dev/null || true
+          # Overlay the whole master tree (never touch .git or .github)
+          rsync -a --exclude '.git' --exclude '.github' "$SRC"/ ./
+          # Remove staging artifacts before committing
+          rm -rf tree master.zip
           # Executable bits for scripts and CLIs
           chmod +x packages/*/scripts/*.sh 2>/dev/null || true
           chmod +x packages/*/usr/bin/* 2>/dev/null || true
@@ -71,7 +71,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Repository already up to date — nothing to commit."
           else
-            git commit -m "Bootstrap: full KAAL OS master V6 tree (packages, docs, workflows)"
+            git commit -m "Bootstrap: full KAAL OS master V6 tree (packages, docs)"
             git push
           fi
 

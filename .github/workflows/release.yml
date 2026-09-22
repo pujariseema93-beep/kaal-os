@@ -1,0 +1,148 @@
+# =============================================================================
+# release.yml — Release Pipeline
+# =============================================================================
+# Triggers when a version tag (v*) is pushed. Downloads the ISO from the
+# latest successful build, creates a GitHub Release, and attaches the ISO.
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  DISTRO_NAME: 'KAAL OS'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- Determine version ----
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "Version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # ---- Download ISO from latest build ----
+      - name: Download ISO from build artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: Build ISO
+          workflow_conclusion: success
+          name: kaal-os-live-iso
+          path: iso-artifact
+          search_artifacts: true
+
+      # ---- Find ISO ----
+      - name: Find ISO
+        id: findiso
+        run: |
+          ISO_FILE=$(find iso-artifact -name "*.iso" -type f | head -1)
+          if [ -z "$ISO_FILE" ]; then
+            echo "::error::No ISO found. Run the Build ISO workflow first."
+            exit 1
+          fi
+          SHA_FILE=$(find iso-artifact -name "*.sha256" -type f | head -1)
+          echo "iso_path=$ISO_FILE" >> $GITHUB_OUTPUT
+          echo "sha_path=$SHA_FILE" >> $GITHUB_OUTPUT
+          echo "iso_size=$(du -h "$ISO_FILE" | cut -f1)" >> $GITHUB_OUTPUT
+
+      # ---- Generate release notes ----
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DATE=$(date '+%Y-%m-%d')
+
+          cat > release-notes.md << NOTES
+          ## ${{ env.DISTRO_NAME }} v${VERSION}
+
+          **Release Date:** ${DATE}
+          **Base:** Fedora 42
+          **ISO Size:** ${{ steps.findiso.outputs.iso_size }}
+
+          ### Download
+
+          Download the ISO file below and write it to a USB drive:
+
+          \`\`\`bash
+          # Verify checksum
+          sha256sum -c *.sha256
+
+          # Write to USB (replace /dev/sdX)
+          sudo dd if=*.iso of=/dev/sdX bs=4M status=progress && sync
+          \`\`\`
+
+          ### Features
+
+          - Fedora 42 base, SELinux enforcing, Secure Boot supported
+          - 6 desktop environments selectable at install (KDE, GNOME, Hyprland, Sway, XFCE, Cinnamon)
+          - 5 software profiles (Gaming, Developer, Power User, Daily, Minimal)
+          - Kaal Spaces: 4 built-in runtime profiles + unlimited custom spaces
+          - Baseline OS hardening: USBGuard, auditd, hardened sysctl, ClamAV, VPN stack
+          - NVIDIA RTX 40-series+ and AMD GPU auto-detection
+          - Auto-update check on every boot
+          - Btrfs snapshot rollback support
+          - GRUB2 or systemd-boot bootloader selection
+          - Full hardware support (WiFi, Bluetooth, audio, power, input, USB)
+          - Calamares installer with custom selection screens
+
+          ### Known Issues
+
+          - Pre-1.0 software — expect rough edges
+          - NVIDIA drivers build on first boot (akmod)
+          - Some emulators may require additional BIOS files
+
+          ### Checksums
+
+          See the .sha256 file for the ISO checksum.
+          NOTES
+
+          echo "Release notes generated."
+
+      # ---- Create GitHub Release ----
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: "${{ env.DISTRO_NAME }} v${{ steps.version.outputs.version }}"
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+          files: |
+            ${{ steps.findiso.outputs.iso_path }}
+            ${{ steps.findiso.outputs.sha_path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---- Summary ----
+      - name: Release summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Distro | ${{ env.DISTRO_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ISO Size | ${{ steps.findiso.outputs.iso_size }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release URL | ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY

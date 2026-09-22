@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# =============================================================================
+# kaal-vpn — VPN control for KAAL OS
+# =============================================================================
+# Works with the preinstalled open stack (WireGuard, OpenVPN, openconnect)
+# via NetworkManager, and optionally installs Proton VPN's official app
+# from Proton's own repository (user-initiated, keys added to THIS system
+# only — never baked into the ISO).
+# =============================================================================
+
+set -uo pipefail
+
+PROTON_RELEASE_RPM_VERSION="1.0.4-1"
+
+usage() {
+    cat << 'USAGE'
+kaal-vpn — KAAL OS VPN control
+
+Usage:
+  kaal-vpn status                     active connections + VPN interfaces
+  kaal-vpn import <file>              import a WireGuard (.conf) or
+                                      OpenVPN (.ovpn) profile into
+                                      NetworkManager
+  kaal-vpn install-proton [--cli]     add Proton's official repo and
+                                      install the Proton VPN app
+                                      (GUI by default, --cli for CLI)
+  kaal-vpn remove-proton              remove Proton repo and app
+
+Typical Proton usage without the app:
+  1. protonvpn.com → Downloads → WireGuard configuration (.conf)
+  2. kaal-vpn import kaal-wg-xx.conf
+  3. nm-connection-editor or nmcli to connect / autoconnect
+USAGE
+}
+
+need_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "kaal-vpn: this command needs sudo" >&2
+        exit 1
+    fi
+}
+
+need_network() {
+    if ! curl -sf --max-time 8 https://repo.protonvpn.com >/dev/null 2>&1; then
+        echo "kaal-vpn: cannot reach repo.protonvpn.com — check your connection" >&2
+        exit 1
+    fi
+}
+
+fedora_version() {
+    # "Fedora Linux release 42 (Forty Two)" -> 42 ; falls back to rpm
+    local ver
+    ver=$(sed -n 's/.*release \([0-9]\+\).*/\1/p' /etc/fedora-release 2>/dev/null | head -1)
+    [ -n "$ver" ] || ver=$(rpm -E %{fedora} 2>/dev/null)
+    echo "$ver"
+}
+
+cmd_status() {
+    echo "KAAL OS VPN status"
+    nmcli --fields NAME,TYPE,DEVICE connection show --active 2>/dev/null | grep -E 'NAME|vpn|wireguard' || true
+    if command -v wg >/dev/null 2>&1; then
+        local n
+        n=$(wg show interfaces 2>/dev/null | wc -w)
+        echo "  WireGuard interfaces up: $n"
+    fi
+    if rpm -q proton-vpn-gnome-desktop >/dev/null 2>&1 || rpm -q proton-vpn-cli >/dev/null 2>&1; then
+        echo "  Proton VPN app: installed"
+    else
+        echo "  Proton VPN app: not installed (opt-in: sudo kaal-vpn install-proton)"
+    fi
+}
+
+cmd_import() {
+    local file="${1:-}"
+    if [ -z "$file" ]; then
+        echo "kaal-vpn: import needs a file (see kaal-vpn --help)" >&2
+        exit 1
+    fi
+    if [ ! -f "$file" ]; then
+        echo "kaal-vpn: no such file: $file" >&2
+        exit 1
+    fi
+    local name type
+    name=$(basename "$file")
+    case "$name" in
+        *.conf) type=wireguard ;;
+        *.ovpn) type=openvpn ;;
+        *) echo "kaal-vpn: unsupported profile '$name' (want .conf for WireGuard or .ovpn for OpenVPN)" >&2; exit 1 ;;
+    esac
+    nmcli connection import type "$type" file "$file" &&
+        echo "Imported '$name' as a $type connection. Connect with:"
+    echo "  nmcli connection up id \"${name%.*}\""
+    echo "Or in: Settings → Network (GNOME) / network manager applet (KDE)"
+}
+
+cmd_install_proton() {
+    need_root
+    need_network
+    local flavor="proton-vpn-gnome-desktop"
+    [ "${1:-}" = "--cli" ] && flavor="proton-vpn-cli"
+
+    local fver rpm_url tmpdir
+    fver=$(fedora_version)
+    if [ -z "$fver" ]; then
+        echo "kaal-vpn: could not detect Fedora version" >&2
+        exit 1
+    fi
+    rpm_url="https://repo.protonvpn.com/fedora-${fver}-stable/protonvpn-stable-release/protonvpn-stable-release-${PROTON_RELEASE_RPM_VERSION}.noarch.rpm"
+
+    # The release-package version bumps over time — if the pinned URL 404s,
+    # fall back to scraping the repo index for the latest one.
+    if ! curl -sfI --max-time 15 "$rpm_url" >/dev/null 2>&1; then
+        echo "kaal-vpn: pinned release package not found, looking up latest..."
+        local latest
+        latest=$(curl -sf --max-time 15 "https://repo.protonvpn.com/fedora-${fver}-stable/protonvpn-stable-release/" \
+            | grep -oE 'protonvpn-stable-release-[0-9.]+-[0-9]+\.noarch\.rpm' | sort -V | tail -1)
+        if [ -z "$latest" ]; then
+            echo "kaal-vpn: no Proton repo found for Fedora ${fver} — check protonvpn.com/support" >&2
+            exit 1
+        fi
+        rpm_url="https://repo.protonvpn.com/fedora-${fver}-stable/protonvpn-stable-release/${latest}"
+    fi
+
+    if [ "$flavor" = "proton-vpn-gnome-desktop" ] &&
+       ! echo "${XDG_CURRENT_DESKTOP:-}" | grep -qi gnome; then
+        echo "NOTE: Proton's GUI app officially targets GNOME. On this desktop it may"
+        echo "still work (GTK), but consider: kaal-vpn install-proton --cli"
+    fi
+
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
+    curl -fL --max-time 60 -o "$tmpdir/proton-release.rpm" "$rpm_url" || {
+        echo "kaal-vpn: download failed: $rpm_url" >&2
+        exit 1
+    }
+    dnf install -y "$tmpdir/proton-release.rpm" && dnf check-update --refresh || true
+    dnf install -y "$flavor"
+    echo
+    echo "Proton VPN installed ($flavor). Sign in with your Proton account to connect."
+}
+
+cmd_remove_proton() {
+    need_root
+    dnf remove -y proton-vpn-gnome-desktop proton-vpn-cli 2>/dev/null || true
+    dnf config-manager --set-disabled protonvpn-stable 2>/dev/null ||
+        rm -f /etc/yum.repos.d/protonvpn*.repo 2>/dev/null || true
+    echo "Proton VPN removed (repo disabled)."
+}
+
+case "${1:-help}" in
+    status)           cmd_status ;;
+    import)           shift; cmd_import "$@" ;;
+    install-proton)   shift; cmd_install_proton "$@" ;;
+    remove-proton)    cmd_remove_proton ;;
+    -h|--help|help)   usage ;;
+    *)                usage; exit 1 ;;
+esac

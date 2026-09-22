@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=KAAL Spaces
+Name[hi]=काल स्पेसेस
+Comment=Switch between Gaming, Development, Power User, and Normal spaces
+Comment[hi]=गेमिंग, डेवलपमेंट, पावर यूज़र और नॉर्मल स्पेस के बीच स्विच करें
+Exec=kaal-space-switcher
+Icon=kaal-spaces
+Categories=System;Settings;Utility;
+Terminal=false
+StartupNotify=true
+Keywords=space;profile;mode;switch;gaming;development;power;normal;

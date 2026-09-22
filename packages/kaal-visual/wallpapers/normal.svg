@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- KAAL OS normal Wallpaper — PLACEHOLDER -->
+  <!-- Replace with your final wallpaper (1920x1080 PNG/JPG) -->
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.5" r="0.7">
+      <stop offset="0%" stop-color="#0a1a0a" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#0d0d0d" stop-opacity="1"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="#0d0d0d"/>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <text x="960" y="540" font-family="DejaVu Sans" font-size="64" font-weight="bold"
+        text-anchor="middle" fill="#1a1a1a" letter-spacing="8">KAAL OS</text>
+  <text x="960" y="580" font-family="DejaVu Sans" font-size="18"
+        text-anchor="middle" fill="#333333" letter-spacing="2">Normal Space</text>
+</svg>

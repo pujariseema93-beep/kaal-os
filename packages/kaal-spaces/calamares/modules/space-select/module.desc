@@ -1,0 +1,34 @@
+# Calamares module descriptor for KAAL Space Selection
+---
+type: viewmodule
+interface: python
+name: space-select
+load: libcalamares.viewpython
+
+# Module configuration
+configuration:
+    # Default space if user doesn't select
+    defaultSpace: normal
+    
+    # Available spaces
+    spaces:
+        - name: gaming
+          displayName: "Gaming"
+          description: "Performance mode for gaming. Max CPU/GPU, low-latency audio, game launchers."
+          icon: "🎮"
+          color: "#FF6B35"
+        - name: development
+          displayName: "Development"
+          description: "Development environment with IDEs, containers, terminal tools."
+          icon: "💻"
+          color: "#4A90D9"
+        - name: power
+          displayName: "Power User"
+          description: "Full system access. All tools exposed, tiling WM, verbose logging."
+          icon: "⚡"
+          color: "#9B59B6"
+        - name: normal
+          displayName: "Normal"
+          description: "Everyday computing. Clean desktop, daily apps, power saving."
+          icon: "🏠"
+          color: "#2ECC71"

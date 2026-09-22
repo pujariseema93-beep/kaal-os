@@ -1,0 +1,20 @@
+[Unit]
+Description=KAAL OS Spaces Daemon
+Documentation=man:kaal-space(1)
+After=network.target dbus.service pipewire.service
+Wants=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.kaal.Spaces
+ExecStart=/usr/libexec/kaal-spaces/kaal-spaced
+Restart=on-failure
+RestartSec=3
+# Allow the service to manage system settings
+PermissionsStartOnly=true
+# State directories
+StateDirectory=kaal/spaces
+RuntimeDirectory=kaal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=KAAL Spaces Auto-Switch
+Comment=Automatically switches spaces based on context
+Exec=/usr/libexec/kaal-spaces/kaal-space-auto
+Icon=kaal-spaces
+Categories=System;
+Terminal=false
+NoDisplay=true
+X-KDE-autostart-after=panel
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5

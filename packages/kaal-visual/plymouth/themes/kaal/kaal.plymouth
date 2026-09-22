@@ -1,0 +1,17 @@
+# KAAL OS Plymouth Theme — Module Definition
+#
+# This file defines the KAAL OS Plymouth theme for the boot splash.
+# Replace logo.png with your final logo (256x256 PNG with transparency).
+# Replace frame-01.png through frame-08.png with your spinner animation.
+
+[Plymouth Theme]
+Name=KAAL OS
+Description=KAAL OS boot splash screen with logo and progress bar
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/kaal
+ScriptFile=/usr/share/plymouth/themes/kaal/kaal.script
+
+# Images used by the theme
+Images=logo.png,frame-01.png,frame-02.png,frame-03.png,frame-04.png,frame-05.png,frame-06.png,frame-07.png,frame-08.png

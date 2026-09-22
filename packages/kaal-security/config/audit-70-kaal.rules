@@ -1,0 +1,36 @@
+# =============================================================================
+# 70-kaal.rules — KAAL OS audit rules (auditd)
+# =============================================================================
+# Minimal, low-noise baseline: watch the files an attacker or rogue process
+# touches when changing identity or escalating privileges. No syscall
+# execve logging (too noisy for a desktop distro).
+# Applied by script 18-security-hardening.sh.
+# =============================================================================
+
+# ---- Identity files ----
+-w /etc/passwd -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/nsswitch.conf -p wa -k identity
+-w /etc/pam.d/ -p wa -k pam
+
+# ---- Privilege escalation ----
+-w /etc/sudoers -p wa -k sudoers
+-w /etc/sudoers.d/ -p wa -k sudoers
+-w /etc/polkit-1/rules.d/ -p wa -k polkit
+
+# ---- SELinux policy and configuration ----
+-w /etc/selinux/ -p wa -k selinux
+
+# ---- Login / session records ----
+-w /var/log/lastlog -p wa -k logins
+-w /var/run/utmp -p wa -k session
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins
+
+# ---- USBGuard policy (USB attack surface) ----
+-w /etc/usbguard/ -p wa -k usbguard
+
+# ---- Audit configuration itself ----
+-w /etc/audit/ -p wa -k audit

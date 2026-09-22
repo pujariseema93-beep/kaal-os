@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAAL OS ISO Build Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--font-body:'DM Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono','SF Mono',Consolas,monospace;--bg:#0b0e14;--surface:#131822;--surface2:#1a2030;--surface-elevated:#20283a;--border:rgba(255,255,255,0.06);--border-bright:rgba(255,255,255,0.12);--text:#e6e9ef;--text-dim:#7c8794;--accent:#39bae6;--accent-dim:rgba(57,186,230,0.1);--green:#7fd962;--green-dim:rgba(127,217,98,0.1);--amber:#f9b54a;--amber-dim:rgba(249,181,74,0.1);--rose:#f07178;--rose-dim:rgba(240,113,120,0.1);--orange:#ff8f40;--orange-dim:rgba(255,143,64,0.1)}
+@media (prefers-color-scheme: light){:root{--bg:#f5f6f8;--surface:#fff;--surface2:#eef0f3;--surface-elevated:#f8f9fb;--border:rgba(0,0,0,0.08);--border-bright:rgba(0,0,0,0.14);--text:#1a2030;--text-dim:#6b7280;--accent:#1e90b8;--accent-dim:rgba(30,144,184,0.08);--green:#4d9b3e;--green-dim:rgba(77,155,62,0.08);--amber:#d48806;--amber-dim:rgba(212,136,6,0.08);--rose:#d4506a;--rose-dim:rgba(212,80,106,0.08);--orange:#e5741c;--orange-dim:rgba(229,116,28,0.08)}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);background-image:radial-gradient(ellipse at 20% 0%,var(--accent-dim) 0%,transparent 50%),radial-gradient(ellipse at 80% 60%,var(--green-dim) 0%,transparent 40%);color:var(--text);font-family:var(--font-body);padding:40px;min-height:100vh;overflow-wrap:break-word}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.ve-card,.sec-head,.pipeline-step,.kpi-card{animation:fadeUp 0.4s ease-out both;animation-delay:calc(var(--i,0)*0.05s)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important}}
+h1{font-size:36px;font-weight:700;letter-spacing:-1px;margin-bottom:6px}
+.subtitle{color:var(--text-dim);font-size:14px;margin-bottom:40px;font-family:var(--font-mono)}
+.sec-head{font-family:var(--font-mono);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-top:48px;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sec-head .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sec-num{font-size:11px;color:var(--text-dim)}
+.ve-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;position:relative}
+.ve-card--hero{background:color-mix(in srgb,var(--surface) 88%,var(--accent) 12%);box-shadow:0 4px 24px rgba(0,0,0,0.1);border-color:color-mix(in srgb,var(--border) 50%,var(--accent) 50%);padding:24px 28px}
+.ve-card--accent{border-left:3px solid var(--accent)}.ve-card--green{border-left:3px solid var(--green)}.ve-card--amber{border-left:3px solid var(--amber)}.ve-card--orange{border-left:3px solid var(--orange)}.ve-card--rose{border-left:3px solid var(--rose)}
+.ve-card__label{font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.ve-card--accent .ve-card__label{color:var(--accent)}.ve-card--green .ve-card__label{color:var(--green)}.ve-card--amber .ve-card__label{color:var(--amber)}.ve-card--orange .ve-card__label{color:var(--orange)}.ve-card--rose .ve-card__label{color:var(--rose)}
+.ve-card__label::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
+.ve-card__desc{color:var(--text-dim);font-size:13px;line-height:1.7}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.card-grid>*{min-width:0}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-col>*{min-width:0}
+.pipeline{display:flex;gap:0;align-items:stretch;overflow-x:auto;padding-bottom:8px}
+.pipeline-step{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;min-width:140px;flex-shrink:0;text-align:center}
+.pipeline-step .step-num{font-family:var(--font-mono);font-size:10px;font-weight:600;margin-bottom:6px}
+.pipeline-step .step-name{font-size:13px;font-weight:600;margin-bottom:4px}
+.pipeline-step .step-detail{font-size:11px;color:var(--text-dim);line-height:1.4}
+.pipeline-step--accent{border-color:var(--accent-dim)}.pipeline-step--accent .step-num{color:var(--accent)}
+.pipeline-step--green{border-color:var(--green-dim)}.pipeline-step--green .step-num{color:var(--green)}
+.pipeline-step--amber{border-color:var(--amber-dim)}.pipeline-step--amber .step-num{color:var(--amber)}
+.pipeline-step--orange{border-color:var(--orange-dim)}.pipeline-step--orange .step-num{color:var(--orange)}
+.pipeline-step--rose{border-color:var(--rose-dim)}.pipeline-step--rose .step-num{color:var(--rose)}
+.pipeline-arrow{display:flex;align-items:center;padding:0 4px;color:var(--border-bright);font-size:18px;flex-shrink:0}
+.tag{font-family:var(--font-mono);font-size:10px;font-weight:500;padding:2px 8px;border-radius:4px;background:var(--accent-dim);color:var(--accent);white-space:nowrap}
+.tag--green{background:var(--green-dim);color:var(--green)}.tag--amber{background:var(--amber-dim);color:var(--amber)}.tag--rose{background:var(--rose-dim);color:var(--rose)}.tag--orange{background:var(--orange-dim);color:var(--orange)}
+.node-list{list-style:none;font-size:12px;line-height:1.9;padding:0;margin-top:8px}
+.node-list li{padding-left:14px;position:relative}
+.node-list li::before{content:'\203A';color:var(--text-dim);font-weight:600;position:absolute;left:0}
+.node-list code{font-family:var(--font-mono);font-size:11px;background:var(--accent-dim);color:var(--accent);padding:1px 5px;border-radius:3px}
+.callout{background:var(--surface2);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:0 8px 8px 0;padding:16px 20px;font-size:13px;line-height:1.7;color:var(--text-dim);margin-top:20px}
+.callout strong{color:var(--text)}.callout code{font-family:var(--font-mono);font-size:11px;background:var(--accent-dim);color:var(--accent);padding:1px 5px;border-radius:3px}
+.dir-tree{font-family:var(--font-mono);font-size:12px;line-height:1.8;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px 20px;overflow-x:auto;white-space:pre;color:var(--text)}
+.dir-tree .ann{color:var(--text-dim);font-size:11px;font-style:italic}
+.dir-tree .hl{color:var(--accent);font-weight:600}.dir-tree .gp{color:var(--green)}.dir-tree .am{color:var(--amber)}.dir-tree .or{color:var(--orange)}.dir-tree .rs{color:var(--rose)}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-bottom:32px}
+.kpi-card{background:var(--surface-elevated);border:1px solid var(--border);border-radius:10px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.kpi-card__value{font-size:28px;font-weight:700;letter-spacing:-1px;line-height:1.1}
+.kpi-card__label{font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);margin-top:6px}
+@media (max-width:768px){body{padding:20px}.two-col{grid-template-columns:1fr}.pipeline{flex-wrap:wrap;gap:6px}.pipeline-arrow{display:none}h1{font-size:28px}}
+</style>
+</head>
+<body>
+
+<h1>KAAL OS ISO Build Pipeline</h1>
+<p class="subtitle">Phase 1 Implementation &middot; Kickstart + livemedia-creator + Calamares &middot; v0.1 &middot; 2026-09-08</p>
+
+<div class="kpi-row">
+  <div class="kpi-card" style="--i:0"><div class="kpi-card__value" style="color:var(--accent)">25</div><div class="kpi-card__label">Files in Package</div></div>
+  <div class="kpi-card" style="--i:1"><div class="kpi-card__value" style="color:var(--green)">6</div><div class="kpi-card__label">Software Profiles</div></div>
+  <div class="kpi-card" style="--i:2"><div class="kpi-card__value" style="color:var(--amber)">7</div><div class="kpi-card__label">Post-Install Scripts</div></div>
+  <div class="kpi-card" style="--i:3"><div class="kpi-card__value" style="color:var(--orange)">2</div><div class="kpi-card__label">Build Methods</div></div>
+</div>
+
+<!-- BUILD PIPELINE -->
+<div id="s1" class="sec-head" style="--i:4">
+  <span class="dot" style="background:var(--accent)"></span>
+  <span class="sec-num">01</span> ISO Build Pipeline
+</div>
+
+<div class="ve-card" style="--i:5;margin-bottom:16px;">
+  <div class="ve-card__label" style="color:var(--accent)">From Source Files to Bootable ISO</div>
+  <div class="pipeline" style="margin-top:16px;">
+    <div class="pipeline-step pipeline-step--accent">
+      <div class="step-num">STEP 1</div>
+      <div class="step-name">Kickstart</div>
+      <div class="step-detail">distro-live.ks<br>defines packages</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--accent">
+      <div class="step-num">STEP 2</div>
+      <div class="step-name">Resolve Repos</div>
+      <div class="step-detail">Fedora + RPM Fusion<br>+ custom repos</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--green">
+      <div class="step-num">STEP 3</div>
+      <div class="step-name">Install PKGs</div>
+      <div class="step-detail">DNF5 installs<br>all packages</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--green">
+      <div class="step-num">STEP 4</div>
+      <div class="step-name">%post Scripts</div>
+      <div class="step-detail">Configure system<br>in chroot</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--amber">
+      <div class="step-num">STEP 5</div>
+      <div class="step-name">Initramfs</div>
+      <div class="step-detail">dracut builds<br>with GPU drivers</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--amber">
+      <div class="step-num">STEP 6</div>
+      <div class="step-name">Bootloader</div>
+      <div class="step-detail">GRUB2 installed<br>+ themed</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--orange">
+      <div class="step-num">STEP 7</div>
+      <div class="step-name">SquashFS</div>
+      <div class="step-detail">Compress root<br>for live boot</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--orange">
+      <div class="step-num">STEP 8</div>
+      <div class="step-name">ISO Image</div>
+      <div class="step-detail">Bootable ISO<br>+ checksums</div>
+    </div>
+  </div>
+</div>
+
+<!-- INSTALLATION FLOW -->
+<div id="s2" class="sec-head" style="--i:6">
+  <span class="dot" style="background:var(--green)"></span>
+  <span class="sec-num">02</span> User Installation Flow (Calamares)
+</div>
+
+<div class="ve-card" style="--i:7;margin-bottom:16px;">
+  <div class="ve-card__label" style="color:var(--green)">What Happens When a User Installs the Distro</div>
+  <div class="pipeline" style="margin-top:16px;">
+    <div class="pipeline-step pipeline-step--accent">
+      <div class="step-num">BOOT</div>
+      <div class="step-name">Live USB</div>
+      <div class="step-detail">Boot ISO<br>autologin</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--accent">
+      <div class="step-num">CLICK</div>
+      <div class="step-name">Install Icon</div>
+      <div class="step-detail">Launch<br>Calamares</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--green">
+      <div class="step-num">PROFILE</div>
+      <div class="step-name">Choose Profile</div>
+      <div class="step-detail">Gaming / Dev /<br>Power / Daily</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--green">
+      <div class="step-num">DE</div>
+      <div class="step-name">Choose DE</div>
+      <div class="step-detail">KDE / GNOME /<br>Hyprland / etc</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--amber">
+      <div class="step-num">DISK</div>
+      <div class="step-name">Partition</div>
+      <div class="step-detail">Btrfs + LUKS<br>+ swap/zram</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--amber">
+      <div class="step-num">INSTALL</div>
+      <div class="step-name">Run Scripts</div>
+      <div class="step-detail">7 post-install<br>scripts execute</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--orange">
+      <div class="step-num">REBOOT</div>
+      <div class="step-name">First Boot</div>
+      <div class="step-detail">GPU detect +<br>driver setup</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--rose">
+      <div class="step-num">READY</div>
+      <div class="step-name">Desktop</div>
+      <div class="step-detail">Auto-update<br>active</div>
+    </div>
+  </div>
+</div>
+
+<!-- POST-INSTALL SCRIPTS -->
+<div id="s3" class="sec-head" style="--i:8">
+  <span class="dot" style="background:var(--amber)"></span>
+  <span class="sec-num">03</span> Post-Install Script Chain
+</div>
+
+<div class="card-grid" style="--i:9">
+  <div class="ve-card ve-card--green">
+    <div class="ve-card__label">01 &mdash; GPU Detection</div>
+    <div class="ve-card__desc">
+      Runs <code>lspci</code>, detects NVIDIA/AMD/Intel, installs correct driver, configures kernel parameters, regenerates GRUB + initramfs.
+      <div style="margin-top:8px"><span class="tag tag--green">NVIDIA</span> <span class="tag tag--green">AMD</span> <span class="tag tag--green">Intel</span></div>
+    </div>
+  </div>
+  <div class="ve-card ve-card--accent">
+    <div class="ve-card__label">02 &mdash; DE Installation</div>
+    <div class="ve-card__desc">
+      Installs the selected desktop environment via DNF. Creates default configs for Hyprland/Sway. Enables the correct display manager (SDDM/GDM/LightDM).
+      <div style="margin-top:8px"><span class="tag">KDE</span> <span class="tag">GNOME</span> <span class="tag">Hyprland</span> <span class="tag">Sway</span> <span class="tag">XFCE</span> <span class="tag">Cinnamon</span></div>
+    </div>
+  </div>
+  <div class="ve-card ve-card--amber">
+    <div class="ve-card__label">03 &mdash; Profile Installation</div>
+    <div class="ve-card__desc">
+      Reads the selected profile package list from <code>/usr/share/distro/profiles/</code> and installs all packages via DNF5. Runs profile-specific post-setup.
+      <div style="margin-top:8px"><span class="tag tag--amber">gaming.list</span> <span class="tag tag--amber">developer.list</span> <span class="tag tag--amber">daily.list</span></div>
+    </div>
+  </div>
+  <div class="ve-card ve-card--orange">
+    <div class="ve-card__label">04 &mdash; Bootloader Setup</div>
+    <div class="ve-card__desc">
+      Calls <code>distro-bootloader-setup --install</code> to install GRUB2 or systemd-boot to the ESP. Detects GPU and generates correct kernel command line.
+    </div>
+  </div>
+  <div class="ve-card ve-card--green">
+    <div class="ve-card__label">05 &mdash; Auto-Update Setup</div>
+    <div class="ve-card__desc">
+      Creates the <code>kaal-update-check.service</code> systemd service and timer. Configures update preferences (mode, interval, metered, snapshot).
+    </div>
+  </div>
+  <div class="ve-card ve-card--amber">
+    <div class="ve-card__label">06 &mdash; System Tuning</div>
+    <div class="ve-card__desc">
+      CPU governor, I/O scheduler (BFQ for SATA, none for NVMe), zram config, sysctl tuning for gaming (inotify watches, swappiness, max_map_count), limits.conf.
+    </div>
+  </div>
+  <div class="ve-card ve-card--rose">
+    <div class="ve-card__label">07 &mdash; Finalize</div>
+    <div class="ve-card__desc">
+      Removes live user, creates install record, cleans DNF cache, final GRUB + initramfs regeneration, enables first-boot service.
+    </div>
+  </div>
+  <div class="ve-card ve-card--accent">
+    <div class="ve-card__label">First Boot Service</div>
+    <div class="ve-card__desc">
+      Runs once on first boot after installation. Detects GPU, builds NVIDIA akmod, regenerates initramfs, enables display manager, configures zram + snapper.
+    </div>
+  </div>
+</div>
+
+<!-- FILE STRUCTURE -->
+<div id="s4" class="sec-head" style="--i:10">
+  <span class="dot" style="background:var(--orange)"></span>
+  <span class="sec-num">04</span> Package File Structure
+</div>
+
+<div class="ve-card" style="--i:11">
+  <div class="ve-card__label" style="color:var(--orange)">25 Files &mdash; Complete ISO Build Infrastructure</div>
+  <pre class="dir-tree" style="margin-top:16px;"><span class="hl">distro-iso-builder/</span>
+├── <span class="hl">distro-live.ks</span>                        <span class="ann">— Kickstart: repos, packages, post-install scripts</span>
+├── <span class="hl">build-iso.sh</span>                          <span class="ann">— Main build script (livemedia-creator)</span>
+├── <span class="hl">build-iso-kiwi.sh</span>                     <span class="ann">— Alternative build script (kiwi-NG)</span>
+├── profiles/
+│   ├── <span class="gp">gaming.list</span>                         <span class="ann">— 40+ packages: Steam, Proton, emulators, OBS</span>
+│   ├── <span class="gp">developer.list</span>                      <span class="ann">— 50+ packages: IDEs, languages, containers, DBs</span>
+│   ├── <span class="gp">power-user.list</span>                     <span class="ann">— 30+ packages: tiling WMs, network tools, CLI</span>
+│   ├── <span class="gp">daily.list</span>                          <span class="ann">— 25+ packages: browser, office, media, creative</span>
+│   └── <span class="gp">minimal.list</span>                        <span class="ann">— 15 packages: base system + DE only</span>
+├── scripts/
+│   ├── <span class="am">01-gpu-detect.sh</span>                   <span class="ann">— lspci detect + NVIDIA/AMD/Intel driver setup</span>
+│   ├── <span class="am">02-de-install.sh</span>                   <span class="ann">— Install selected DE + display manager</span>
+│   ├── <span class="am">03-profile-install.sh</span>               <span class="ann">— Install profile packages + post-setup</span>
+│   ├── <span class="am">04-bootloader-setup.sh</span>               <span class="ann">— Install GRUB2/systemd-boot + regen</span>
+│   ├── <span class="am">05-auto-update-setup.sh</span>              <span class="ann">— Create boot update service + preferences</span>
+│   ├── <span class="am">06-system-tuning.sh</span>                 <span class="ann">— CPU gov, I/O sched, zram, sysctl, limits</span>
+│   └── <span class="am">07-finalize.sh</span>                      <span class="ann">— Cleanup, first-boot service, final regen</span>
+├── config/
+│   ├── <span class="or">live-image-config.sh</span>                <span class="ann">— Live user autologin, desktop shortcuts</span>
+│   └── <span class="or">calamares-modules.conf</span>               <span class="ann">— Profile/DE/bootloader selection screens</span>
+├── kiwi/
+│   └── <span class="rs">distro-live.xml</span>                     <span class="ann">— kiwi-NG appliance config (alternative)</span>
+└── docs/
+    └── <span class="hl">BUILD_GUIDE.md</span>                     <span class="ann">— Full build instructions + troubleshooting</span></pre>
+</div>
+
+<!-- BUILD METHODS -->
+<div id="s5" class="sec-head" style="--i:12">
+  <span class="dot" style="background:var(--accent)"></span>
+  <span class="sec-num">05</span> Two Build Methods
+</div>
+
+<div class="two-col" style="--i:13">
+  <div class="ve-card ve-card--accent">
+    <div class="ve-card__label">Method 1: livemedia-creator (Default)</div>
+    <div class="ve-card__desc">
+      Fedora's standard ISO builder, part of the Lorax toolset. Consumes the kickstart file directly.
+      <br><br>
+      <span class="tag">Fedora-standard</span> <span class="tag">Kickstart-driven</span> <span class="tag">Reproducible</span>
+      <br><br>
+      <code>sudo ./build-iso.sh --releasever 42</code>
+      <br><br>
+      Pros: Official Fedora tool, well-documented, uses kickstart syntax
+      <br>
+      Cons: Slower, less flexible output formats
+    </div>
+  </div>
+  <div class="ve-card ve-card--rose">
+    <div class="ve-card__label">Method 2: kiwi-NG (Alternative)</div>
+    <div class="ve-card__desc">
+      Modern image builder from SUSE. XML-based config, supports ISO/disk/containers.
+      <br><br>
+      <span class="tag tag--rose">Multiple formats</span> <span class="tag tag--rose">XML config</span> <span class="tag tag--rose">Modern</span>
+      <br><br>
+      <code>sudo ./build-iso-kiwi.sh</code>
+      <br><br>
+      Pros: Can produce ISO, qcow2, raw, OCI container from same config
+      <br>
+      Cons: Less Fedora-specific documentation
+    </div>
+  </div>
+</div>
+
+<div class="callout" style="--i:14">
+  <strong>Build requirements:</strong> A Fedora 40+ host (bare metal or VM) with root access, ~20GB disk space, and the <code>lorax</code> / <code>xorriso</code> packages. Build takes 30-60 minutes depending on network speed and hardware. The resulting ISO is a hybrid UEFI+BIOS live image with Calamares installer.
+</div>
+
+<div style="text-align:center;margin-top:60px;padding-top:24px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--text-dim)">
+  KAAL OS ISO Builder v0.1 &middot; 25 files &middot; Kickstart + livemedia-creator + kiwi-NG + Calamares &middot; 2026-09-08
+</div>
+
+</body></html>

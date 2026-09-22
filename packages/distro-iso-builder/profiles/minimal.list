@@ -1,0 +1,56 @@
+# =============================================================================
+# minimal.list — Minimal Profile Package List
+# =============================================================================
+# Bare minimum for a working desktop. No extra applications.
+# User gets the base system + selected DE only.
+# =============================================================================
+
+# ---- Base System ----
+@core
+@standard
+@hardware-support
+@base-x
+@fonts
+@networkmanager-submodules
+
+# ---- Kernel ----
+kernel
+kernel-modules
+kernel-modules-extra
+
+# ---- Display Server & Audio ----
+@wayland
+xorg-x11-server-Xorg
+pipewire
+pipewire-alsa
+pipewire-pulseaudio
+wireplumber
+
+# ---- Essential Tools ----
+firefox
+flatpak
+git
+vim
+htop
+btop
+NetworkManager
+NetworkManager-wifi
+
+# ---- Filesystem ----
+btrfs-progs
+ntfs-3g
+dosfstools
+gparted
+
+# ---- Firmware ----
+fwupd
+fwupd-efi
+
+# ---- Bootloader ----
+grub2
+grub2-efi-x64
+grub2-tools
+shim-x64
+dracut
+
+# ---- No extra applications beyond this ----

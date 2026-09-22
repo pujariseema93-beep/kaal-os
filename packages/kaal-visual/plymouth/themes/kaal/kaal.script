@@ -1,0 +1,107 @@
+#!/bin/bash
+# KAAL OS Plymouth Theme — Boot Splash Script
+# This script runs during boot to display the KAAL OS splash screen.
+# It shows the KAAL logo with an animated progress bar.
+#
+# Replace the logo.png placeholder with your final logo (256x256 PNG with alpha).
+# Replace spinner frames (frame-01.png through frame-08.png) for custom animation.
+
+# --- Helper functions ---
+
+string="KAAL OS"
+
+# Called when the theme is loaded — set up initial state
+plymouth_populate_init() {
+    # Main logo (centered)
+    plymouth_set_refresh_function "refresh_callback"
+}
+
+# Progress bar position
+progress=0
+
+# Main draw function
+refresh_callback() {
+    local width height
+    width=$(plymouth get-mode 2>/dev/null | awk '{print $2}' || echo 1920)
+    height=$(plymouth get-mode 2>/dev/null | awk '{print $3}' || echo 1080)
+    
+    # Clear screen to background color
+    plymouth clear
+    
+    local center_x=$((width / 2))
+    local center_y=$((height / 2))
+    
+    # Draw logo (if available)
+    if [[ -f "$(dirname "$0")/logo.png" ]]; then
+        # Logo is 256x256, centered
+        local logo_x=$((center_x - 128))
+        local logo_y=$((center_y - 180))
+        plymouth image "$(dirname "$0")/logo.png" "$logo_x" "$logo_y"
+    fi
+    
+    # Draw "KAAL OS" text below logo
+    local text_y=$((center_y + 80))
+    plymouth text --string="$string" --x-pos="$((center_x - 60))" --y-pos="$text_y"
+    
+    # Draw progress bar
+    local bar_width=400
+    local bar_height=6
+    local bar_x=$((center_x - bar_width / 2))
+    local bar_y=$((center_y + 120))
+    
+    # Progress bar background
+    plymouth fill "$bar_x" "$bar_y" "$bar_width" "$bar_height" "#1a1a1a"
+    
+    # Progress bar fill
+    local fill_width=$((progress * bar_width / 100))
+    if [[ $fill_width -gt 0 ]]; then
+        plymouth fill "$bar_x" "$bar_y" "$fill_width" "$bar_height" "#4A90D9"
+    fi
+    
+    # Draw spinner if boot is taking time
+    if [[ $progress -gt 0 && $progress -lt 100 ]]; then
+        local spinner_frame=$((progress / 13 % 8 + 1))
+        local spinner_file="$(dirname "$0")/frame-$(printf '%02d' "$spinner_frame").png"
+        if [[ -f "$spinner_file" ]]; then
+            plymouth image "$spinner_file" "$((center_x + 220))" "$((bar_y - 10))"
+        fi
+    fi
+}
+
+# Called on boot progress updates
+plymouth_update_status() {
+    progress="$1"
+    refresh_callback
+}
+
+# Called when boot completes
+plymouth_quit() {
+    # Final fade-out
+    local i
+    for i in $(seq 100 -5 0); do
+        plymouth clear
+        refresh_callback
+        # plymouth_set_opacity "$((i / 100))" 2>/dev/null || true
+    done
+    plymouth clear
+}
+
+# Export functions
+case "$1" in
+    init)
+        plymouth_populate_init
+        ;;
+    refresh)
+        refresh_callback
+        ;;
+    status)
+        progress="$2"
+        refresh_callback
+        ;;
+    quit)
+        plymouth_quit
+        ;;
+    *)
+        refresh_callback
+        ;;
+esac

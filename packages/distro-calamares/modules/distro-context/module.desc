@@ -1,0 +1,7 @@
+---
+type: "job"
+interface: "python"
+name: "distro-context"
+entrypoint: "main.py"
+configuration: "distro-context.conf"
+reload: false

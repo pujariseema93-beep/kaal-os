@@ -1,0 +1,29 @@
+# =============================================================================
+# /usr/share/distro-bootloader/systemd-boot/entry-distro-fallback.conf.template
+# =============================================================================
+# Fallback boot entry — boots with minimal kernel parameters and no
+# GPU-specific params. Used when the primary entry fails to boot.
+#
+# This is the "safe mode" of the bootloader — always available as a
+# recovery option.
+# =============================================================================
+
+title   KAAL OS (Fallback / Safe Mode)
+version __KERNEL_VERSION__
+machine-id __MACHINE_ID__
+
+linux   /__DISTRO_DIR__/vmlinuz
+initrd  /__DISTRO_DIR__/initramfs-fallback.img
+
+# Minimal options — no GPU params, full mitigations, verbose logging
+# This ensures the system boots even if GPU drivers are broken
+options root=UUID=__ROOT_UUID__ ro rootflags=subvol=root loglevel=7 rd.driver.blacklist=nvidia rd.driver.blacklist=nouveau nomodeset
+
+# ---- What this does differently ----
+# loglevel=7                    — Full kernel logging (see what went wrong)
+# rd.driver.blacklist=nvidia    — Don't load NVIDIA in initramfs
+# rd.driver.blacklist=nouveau   — Don't load nouveau either
+# nomodeset                     — Use basic framebuffer, no KMS
+#
+# This should give you a working TTY even if GPU drivers are completely broken.
+# From there you can reinstall drivers or roll back to a snapshot.

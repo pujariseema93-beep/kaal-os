@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- KAAL OS Plymouth Logo — PLACEHOLDER -->
+  <!-- Replace this file with your final logo (256x256 PNG with transparency) -->
+  <!-- Convert with: rsvg-convert -w 256 -h 256 logo.svg -o logo.png -->
+  
+  <!-- Dark circle background -->
+  <circle cx="128" cy="128" r="120" fill="#0d0d0d" stroke="#4A90D9" stroke-width="3" opacity="0.9"/>
+  
+  <!-- KAAL stylized text -->
+  <text x="128" y="140" font-family="DejaVu Sans" font-size="48" font-weight="bold"
+        text-anchor="middle" fill="#e0e0e0" letter-spacing="4">KAAL</text>
+  
+  <!-- Accent dot below -->
+  <circle cx="128" cy="170" r="4" fill="#4A90D9"/>
+</svg>

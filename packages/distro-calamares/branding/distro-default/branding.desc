@@ -1,0 +1,97 @@
+# =============================================================================
+# branding.desc — Calamares Branding for KAAL OS
+# =============================================================================
+# Controls the visual identity of the installer: colors, images, fonts,
+# slides shown during installation. The actual visual assets (logo,
+# background, slide images) will be designed in Phase 5.
+#
+# Place at: /usr/lib/calamares/branding/distro-default/branding.desc
+# =============================================================================
+
+---
+# ---- Component versions (Calamares branding format) ----
+componentName: distro-default
+
+# ---- Window setup ----
+# Size of the installer window
+windowExpanding: true
+windowSize:
+  width: 1000
+  height: 600
+
+# ---- Strings ----
+# These appear in the installer UI
+strings:
+  productName: "KAAL OS"
+  shortProductName: "KAAL OS"
+  version: "0.1"
+  shortVersion: "0.1"
+  codename: "Placeholder"
+  productUrl: "https://distro.example.com"
+  productUrlText: "distro.example.com"
+  supportUrl: "https://forum.distro.example.com"
+  knownIssuesUrl: "https://bugs.distro.example.com"
+  releaseNotesUrl: "https://distro.example.com/releases"
+
+# ---- Images ----
+# Paths are relative to the branding directory.
+# These will be created in Phase 5. For now, use empty strings
+# which makes Calamares fall back to defaults.
+images:
+  productLogo: ""                    # Will be: "logo.png"
+  productText: ""                    # Will be: "logo-text.png"
+  productWelcome: ""                 # Will be: "welcome.png"
+
+# ---- Style / Colors ----
+# QSS (Qt Style Sheet) for the installer UI.
+# Uses our distro accent color (#39bae6 — cyan/teal).
+# Full theme applied in Phase 5.
+style:
+  SidebarBackground: "#0b0e14"
+  SidebarText: "#e6e9ef"
+  SidebarTextCurrent: "#39bae6"
+  SidebarTextHighlight: "#39bae6"
+  SidebarTextSelected: "#ffffff"
+  SidebarFont: "DM Sans"
+  SidebarFontWeight: "600"
+  SidebarFontSize: "12px"
+
+  # Main area
+  PanelBackground: "#131822"
+  PanelText: "#e6e9ef"
+  PanelTextLink: "#39bae6"
+
+  # Buttons
+  ButtonBackground: "#1a2030"
+  ButtonBackgroundHover: "#20283a"
+  ButtonText: "#e6e9ef"
+  ButtonTextSelected: "#ffffff"
+
+  # Input fields
+  TextFieldBackground: "#1a2030"
+  TextFieldBorderColor: "#333"
+  TextFieldFocusBorderColor: "#39bae6"
+
+  # Progress
+  ProgressBarColor: "#39bae6"
+  ProgressBarBackgroundColor: "#1a2030"
+
+  # Items view (package lists, partition views)
+  ItemBackground: "#131822"
+  ItemBackgroundHover: "#1a2030"
+  ItemBackgroundSelected: "#20283a"
+  ItemText: "#e6e9ef"
+  ItemTextSelected: "#ffffff"
+
+# ---- Slides ----
+# Slides shown during the installation phase (while files are being copied).
+# These are QML or image files. Will be created in Phase 5.
+slideshow: ""
+# slideshow: "slides"  # Directory with slide QML files
+slideshowDuration: 2000  # Milliseconds per slide
+
+# ---- Navigation ----
+# Whether to show "Next" / "Back" buttons
+navigation:
+  next: true
+  back: true

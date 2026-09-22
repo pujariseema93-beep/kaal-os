@@ -1,0 +1,554 @@
+#!/usr/bin/env python3
+"""
+KAAL OS Space Editor — Qt6 GUI
+
+A visual editor for creating and editing custom KAAL Spaces.
+Users can adjust CPU governor, audio latency, services, pinned apps,
+colors, and more — all through a form-based UI.
+
+Run: kaal-space-editor [space_name]
+  - No args: create new space (shows template picker)
+  - With name: edit existing space
+"""
+
+import sys
+import os
+import json
+import configparser
+
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QFrame, QScrollArea, QLineEdit, QTextEdit,
+    QComboBox, QCheckBox, QSpinBox, QTabWidget, QColorDialog,
+    QMessageBox, QFileDialog, QFormLayout, QGroupBox, QSplitter
+)
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QFont, QColor, QPalette
+
+SPACES_DIR = "/etc/kaal/spaces"
+TEMPLATES_DIR = "/usr/share/kaal/spaces/templates"
+
+STYLE = """
+    QMainWindow, QWidget { background-color: #0d0d0d; color: #e0e0e0; }
+    QGroupBox {
+        border: 1px solid #333; border-radius: 8px;
+        margin-top: 16px; padding-top: 16px;
+        font-weight: bold; color: #888;
+    }
+    QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }
+    QLabel { color: #ccc; }
+    QLineEdit, QTextEdit, QComboBox, QSpinBox {
+        background-color: #1a1a1a; border: 1px solid #444;
+        border-radius: 4px; padding: 6px 10px; color: #fff;
+    }
+    QLineEdit:focus, QTextEdit:focus { border-color: #4A90D9; }
+    QPushButton {
+        background-color: #2a2a2a; border: 1px solid #555;
+        border-radius: 6px; padding: 8px 20px; color: #fff;
+    }
+    QPushButton:hover { background-color: #3a3a3a; }
+    QPushButton:pressed { background-color: #222; }
+    QPushButton#primary { background-color: #4A90D9; border-color: #4A90D9; }
+    QPushButton#primary:hover { background-color: #5AA0E9; }
+    QPushButton#danger { background-color: #c0392b; border-color: #c0392b; }
+    QPushButton#danger:hover { background-color: #d0493b; }
+    QTabWidget::pane { border: 1px solid #333; border-radius: 8px; }
+    QTabBar::tab {
+        background: #1a1a1a; padding: 8px 20px;
+        border: 1px solid #333; border-bottom: none;
+        border-top-left-radius: 6px; border-top-right-radius: 6px;
+        color: #888;
+    }
+    QTabBar::tab:selected { background: #2a2a2a; color: #fff; }
+    QCheckBox { color: #ccc; }
+    QScrollArea { border: none; }
+"""
+
+
+class SpaceEditor(QMainWindow):
+    """Main space editor window."""
+
+    def __init__(self, space_name=None):
+        super().__init__()
+        self.space_name = space_name
+        self.is_new = space_name is None
+        self.config = configparser.ConfigParser()
+
+        self.setWindowTitle("KAAL Space Editor" if not self.is_new else "Create New KAAL Space")
+        self.setMinimumSize(800, 700)
+        self.setStyleSheet(STYLE)
+
+        self._init_ui()
+        self._load_data()
+
+    def _init_ui(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # Header
+        header = QLabel("Create New Space" if self.is_new else f"Edit: {self.space_name}")
+        header.setFont(QFont("Sans", 18, QFont.Weight.Bold))
+        layout.addWidget(header)
+
+        # Name input
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Space Name:"))
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("my-space (lowercase, hyphens)")
+        name_layout.addWidget(self.name_input)
+
+        if self.is_new:
+            name_layout.addWidget(QLabel("Template:"))
+            self.template_combo = QComboBox()
+            self.template_combo.addItems(["blank", "study", "media", "creative", "security", "kiosk"])
+            name_layout.addWidget(self.template_combo)
+
+        layout.addLayout(name_layout)
+
+        # Color picker
+        color_layout = QHBoxLayout()
+        color_layout.addWidget(QLabel("Color:"))
+        self.color_preview = QPushButton("Pick Color")
+        self.color_preview.setFixedWidth(120)
+        self.color_preview.clicked.connect(self._pick_color)
+        self.current_color = "#888888"
+        self._update_color_button()
+        color_layout.addWidget(self.color_preview)
+        color_layout.addStretch()
+        layout.addLayout(color_layout)
+
+        # Tabbed editor
+        tabs = QTabWidget()
+
+        # --- Space & Description tab ---
+        space_tab = QWidget()
+        space_layout = QFormLayout(space_tab)
+        self.display_name = QLineEdit()
+        self.description = QLineEdit()
+        self.description.setPlaceholderText("A brief description of this space")
+        space_layout.addRow("Display Name:", self.display_name)
+        space_layout.addRow("Description:", self.description)
+        tabs.addTab(space_tab, "General")
+
+        # --- System tab ---
+        sys_tab = QWidget()
+        sys_layout = QFormLayout(sys_tab)
+
+        self.cpu_governor = QComboBox()
+        self.cpu_governor.addItems(["performance", "schedutil", "ondemand", "powersave", "conservative"])
+        sys_layout.addRow("CPU Governor:", self.cpu_governor)
+
+        self.cpu_epp = QComboBox()
+        self.cpu_epp.addItems(["performance", "balance_performance", "balanced", "balance_power", "power"])
+        sys_layout.addRow("Energy Perf Pref:", self.cpu_epp)
+
+        self.gpu_profile = QComboBox()
+        self.gpu_profile.addItems(["performance", "balanced", "auto"])
+        sys_layout.addRow("GPU Profile:", self.gpu_profile)
+
+        self.gpu_force = QCheckBox("Force dedicated GPU (NVIDIA PRIME)")
+        sys_layout.addRow("", self.gpu_force)
+
+        self.audio_quantum = QSpinBox()
+        self.audio_quantum.setRange(16, 8192)
+        self.audio_quantum.setSingleStep(64)
+        self.audio_quantum.setSuffix(" samples")
+        sys_layout.addRow("Audio Quantum:", self.audio_quantum)
+
+        self.audio_rate = QComboBox()
+        self.audio_rate.addItems(["44100", "48000", "96000", "192000"])
+        sys_layout.addRow("Audio Rate:", self.audio_rate)
+
+        self.compositor_effects = QCheckBox("Enable compositor effects")
+        sys_layout.addRow("", self.compositor_effects)
+
+        self.compositor_vsync = QCheckBox("Enable VSync")
+        sys_layout.addRow("", self.compositor_vsync)
+
+        self.notifications = QComboBox()
+        self.notifications.addItems(["all", "minimal", "dnd", "off"])
+        sys_layout.addRow("Notifications:", self.notifications)
+
+        self.bluetooth = QCheckBox("Enable Bluetooth")
+        sys_layout.addRow("", self.bluetooth)
+
+        self.network_ssh = QCheckBox("Enable SSH")
+        sys_layout.addRow("", self.network_ssh)
+
+        self.network_qos = QCheckBox("Enable network QoS (game traffic priority)")
+        sys_layout.addRow("", self.network_qos)
+
+        tabs.addTab(sys_tab, "System")
+
+        # --- Services tab ---
+        svc_tab = QWidget()
+        svc_layout = QFormLayout(svc_tab)
+
+        self.svc_enable = QTextEdit()
+        self.svc_enable.setPlaceholderText("docker.service, podman.socket, ...")
+        self.svc_enable.setMaximumHeight(80)
+        svc_layout.addRow("Enable Services:", self.svc_enable)
+
+        self.svc_disable = QTextEdit()
+        self.svc_disable.setPlaceholderText("gamemoded.service, steam.service, ...")
+        self.svc_disable.setMaximumHeight(80)
+        svc_layout.addRow("Disable Services:", self.svc_disable)
+
+        self.svc_restart = QTextEdit()
+        self.svc_restart.setPlaceholderText("pipewire.service, wireplumber.service, ...")
+        self.svc_restart.setMaximumHeight(80)
+        svc_layout.addRow("Restart Services:", self.svc_restart)
+
+        tabs.addTab(svc_tab, "Services")
+
+        # --- Desktop tab ---
+        desk_tab = QWidget()
+        desk_layout = QFormLayout(desk_tab)
+
+        self.wallpaper = QLineEdit()
+        self.wallpaper.setPlaceholderText("/path/to/wallpaper.jpg")
+        desk_layout.addRow("Wallpaper:", self.wallpaper)
+
+        self.panel_layout = QComboBox()
+        self.panel_layout.addItems(["normal", "gaming", "development", "power", "kiosk"])
+        desk_layout.addRow("Panel Layout:", self.panel_layout)
+
+        self.pinned_apps = QLineEdit()
+        self.pinned_apps.setPlaceholderText("firefox,code,steam,...")
+        desk_layout.addRow("Pinned Apps:", self.pinned_apps)
+
+        self.show_categories = QLineEdit()
+        self.show_categories.setPlaceholderText("Network,Office,Game,...")
+        desk_layout.addRow("Show Categories:", self.show_categories)
+
+        self.hide_categories = QLineEdit()
+        self.hide_categories.setPlaceholderText("Development,System,...")
+        desk_layout.addRow("Hide Categories:", self.hide_categories)
+
+        tabs.addTab(desk_tab, "Desktop")
+
+        # --- Environment tab ---
+        env_tab = QWidget()
+        env_layout = QVBoxLayout(env_tab)
+        env_layout.addWidget(QLabel("Environment Variables (KEY=VALUE, one per line):"))
+        self.env_vars = QTextEdit()
+        self.env_vars.setFont(QFont("Monospace", 10))
+        self.env_vars.setPlaceholderText("DEV_MODE=1\nEDITOR=code\nFOO=bar")
+        env_layout.addWidget(self.env_vars)
+        tabs.addTab(env_tab, "Environment")
+
+        # --- Hooks tab ---
+        hooks_tab = QWidget()
+        hooks_layout = QFormLayout(hooks_tab)
+        self.hook_pre_enter = QLineEdit()
+        self.hook_pre_enter.setPlaceholderText("/path/to/pre-enter.sh")
+        hooks_layout.addRow("Pre-Enter Hook:", self.hook_pre_enter)
+        self.hook_post_enter = QLineEdit()
+        self.hook_post_enter.setPlaceholderText("/path/to/post-enter.sh")
+        hooks_layout.addRow("Post-Enter Hook:", self.hook_post_enter)
+        self.hook_pre_exit = QLineEdit()
+        self.hook_pre_exit.setPlaceholderText("/path/to/pre-exit.sh")
+        hooks_layout.addRow("Pre-Exit Hook:", self.hook_pre_exit)
+        self.hook_post_exit = QLineEdit()
+        self.hook_post_exit.setPlaceholderText("/path/to/post-exit.sh")
+        hooks_layout.addRow("Post-Exit Hook:", self.hook_post_exit)
+        tabs.addTab(hooks_tab, "Hooks")
+
+        # --- Raw Config tab ---
+        raw_tab = QWidget()
+        raw_layout = QVBoxLayout(raw_tab)
+        raw_layout.addWidget(QLabel("Raw INI Configuration:"))
+        self.raw_config = QTextEdit()
+        self.raw_config.setFont(QFont("Monospace", 10))
+        raw_layout.addWidget(self.raw_config)
+        tabs.addTab(raw_tab, "Raw Config")
+
+        layout.addWidget(tabs)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        if not self.is_new:
+            delete_btn = QPushButton("Delete Space")
+            delete_btn.setObjectName("danger")
+            delete_btn.clicked.connect(self._delete_space)
+            btn_layout.addWidget(delete_btn)
+
+        export_btn = QPushButton("Export JSON")
+        export_btn.clicked.connect(self._export_json)
+        btn_layout.addWidget(export_btn)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.close)
+        btn_layout.addWidget(cancel_btn)
+
+        save_btn = QPushButton("Save Space")
+        save_btn.setObjectName("primary")
+        save_btn.clicked.connect(self._save_space)
+        btn_layout.addWidget(save_btn)
+
+        layout.addLayout(btn_layout)
+
+    def _load_data(self):
+        """Load existing space config or template."""
+        if self.is_new:
+            # Load blank template
+            tmpl_path = os.path.join(TEMPLATES_DIR, "blank.conf")
+            if os.path.exists(tmpl_path):
+                self.config.read(tmpl_path)
+        else:
+            conf_path = os.path.join(SPACES_DIR, f"{self.space_name}.conf")
+            if os.path.exists(conf_path):
+                self.config.read(conf_path)
+            self.name_input.setText(self.space_name)
+            self.name_input.setEnabled(False)  # Can't rename
+
+        # Populate fields
+        self.display_name.setText(self.config.get("space", "name", fallback=""))
+        self.description.setText(self.config.get("space", "description", fallback=""))
+        self.current_color = self.config.get("space", "color", fallback="#888888")
+        self._update_color_button()
+
+        gov = self.config.get("system", "cpu_governor", fallback="schedutil")
+        if self.cpu_governor.findText(gov) >= 0:
+            self.cpu_governor.setCurrentText(gov)
+
+        epp = self.config.get("system", "cpu_energy_perf", fallback="balance_performance")
+        if self.cpu_epp.findText(epp) >= 0:
+            self.cpu_epp.setCurrentText(epp)
+
+        gp = self.config.get("system", "gpu_power_profile", fallback="auto")
+        if self.gpu_profile.findText(gp) >= 0:
+            self.gpu_profile.setCurrentText(gp)
+
+        self.gpu_force.setChecked(self.config.getboolean("system", "gpu_force_dedicated", fallback=False))
+        self.audio_quantum.setValue(self.config.getint("system", "audio_quantum", fallback=256))
+
+        rate = self.config.get("system", "audio_rate", fallback="48000")
+        if self.audio_rate.findText(rate) >= 0:
+            self.audio_rate.setCurrentText(rate)
+
+        self.compositor_effects.setChecked(self.config.getboolean("system", "compositor_effects", fallback=True))
+        self.compositor_vsync.setChecked(self.config.getboolean("system", "compositor_vsync", fallback=True))
+
+        notif = self.config.get("system", "notifications", fallback="all")
+        if self.notifications.findText(notif) >= 0:
+            self.notifications.setCurrentText(notif)
+
+        self.bluetooth.setChecked(self.config.get("system", "bluetooth", fallback=True) == "on")
+        self.network_ssh.setChecked(self.config.get("system", "network_ssh", fallback=False) == "true")
+        self.network_qos.setChecked(self.config.get("system", "network_qos", fallback=False) == "true")
+
+        self.svc_enable.setPlainText(self.config.get("services", "enable", fallback=""))
+        self.svc_disable.setPlainText(self.config.get("services", "disable", fallback=""))
+        self.svc_restart.setPlainText(self.config.get("services", "restart", fallback=""))
+
+        self.wallpaper.setText(self.config.get("desktop", "wallpaper", fallback=""))
+        pl = self.config.get("desktop", "panel_layout", fallback="normal")
+        if self.panel_layout.findText(pl) >= 0:
+            self.panel_layout.setCurrentText(pl)
+        self.pinned_apps.setText(self.config.get("desktop", "pinned_apps", fallback=""))
+        self.show_categories.setText(self.config.get("desktop", "show_categories", fallback=""))
+        self.hide_categories.setText(self.config.get("desktop", "hide_categories", fallback=""))
+
+        # Environment variables
+        env_lines = []
+        if self.config.has_section("environment"):
+            for k, v in self.config.items("environment"):
+                env_lines.append(f"{k}={v}")
+        self.env_vars.setPlainText("\n".join(env_lines))
+
+        # Hooks
+        self.hook_pre_enter.setText(self.config.get("hooks", "pre_enter", fallback=""))
+        self.hook_post_enter.setText(self.config.get("hooks", "post_enter", fallback=""))
+        self.hook_pre_exit.setText(self.config.get("hooks", "pre_exit", fallback=""))
+        self.hook_post_exit.setText(self.config.get("hooks", "post_exit", fallback=""))
+
+        self._update_raw_config()
+
+    def _update_raw_config(self):
+        """Update raw config display from form fields."""
+        self._collect_config()
+        import io
+        buf = io.StringIO()
+        self.config.write(buf)
+        self.raw_config.setPlainText(buf.getvalue())
+
+    def _collect_config(self):
+        """Build config from form fields."""
+        if not self.config.has_section("space"):
+            self.config.add_section("space")
+        self.config.set("space", "name", self.display_name.text() or "Custom")
+        self.config.set("space", "description", self.description.text())
+        self.config.set("space", "color", self.current_color)
+
+        if not self.config.has_section("system"):
+            self.config.add_section("system")
+        self.config.set("system", "cpu_governor", self.cpu_governor.currentText())
+        self.config.set("system", "cpu_energy_perf", self.cpu_epp.currentText())
+        self.config.set("system", "gpu_power_profile", self.gpu_profile.currentText())
+        self.config.set("system", "gpu_force_dedicated", "true" if self.gpu_force.isChecked() else "false")
+        self.config.set("system", "audio_quantum", str(self.audio_quantum.value()))
+        self.config.set("system", "audio_rate", self.audio_rate.currentText())
+        self.config.set("system", "compositor_effects", "true" if self.compositor_effects.isChecked() else "false")
+        self.config.set("system", "compositor_vsync", "true" if self.compositor_vsync.isChecked() else "false")
+        self.config.set("system", "notifications", self.notifications.currentText())
+        self.config.set("system", "bluetooth", "on" if self.bluetooth.isChecked() else "off")
+        self.config.set("system", "network_ssh", "true" if self.network_ssh.isChecked() else "false")
+        self.config.set("system", "network_qos", "true" if self.network_qos.isChecked() else "false")
+
+        if not self.config.has_section("services"):
+            self.config.add_section("services")
+        self.config.set("services", "enable", self.svc_enable.toPlainText().strip().replace("\n", ", "))
+        self.config.set("services", "disable", self.svc_disable.toPlainText().strip().replace("\n", ", "))
+        self.config.set("services", "restart", self.svc_restart.toPlainText().strip().replace("\n", ", "))
+
+        if not self.config.has_section("desktop"):
+            self.config.add_section("desktop")
+        self.config.set("desktop", "wallpaper", self.wallpaper.text())
+        self.config.set("desktop", "panel_layout", self.panel_layout.currentText())
+        self.config.set("desktop", "pinned_apps", self.pinned_apps.text())
+        self.config.set("desktop", "show_categories", self.show_categories.text())
+        self.config.set("desktop", "hide_categories", self.hide_categories.text())
+
+        # Environment variables
+        if self.config.has_section("environment"):
+            self.config.remove_section("environment")
+        env_text = self.env_vars.toPlainText().strip()
+        if env_text:
+            self.config.add_section("environment")
+            for line in env_text.split("\n"):
+                line = line.strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    self.config.set("environment", k.strip(), v.strip())
+
+        # Hooks
+        if not self.config.has_section("hooks"):
+            self.config.add_section("hooks")
+        self.config.set("hooks", "pre_enter", self.hook_pre_enter.text())
+        self.config.set("hooks", "post_enter", self.hook_post_enter.text())
+        self.config.set("hooks", "pre_exit", self.hook_pre_exit.text())
+        self.config.set("hooks", "post_exit", self.hook_post_exit.text())
+
+    def _pick_color(self):
+        color = QColorDialog.getColor(QColor(self.current_color), self, "Pick Space Color")
+        if color.isValid():
+            self.current_color = color.name()
+            self._update_color_button()
+
+    def _update_color_button(self):
+        self.color_preview.setStyleSheet(
+            f"background-color: {self.current_color}; border: none; border-radius: 6px; color: white; font-weight: bold;"
+        )
+
+    def _save_space(self):
+        """Save the space configuration."""
+        space_name = self.name_input.text().strip().lower()
+        if not space_name:
+            QMessageBox.warning(self, "Error", "Space name cannot be empty")
+            return
+
+        import re
+        if not re.match(r'^[a-z][a-z0-9-]{1,31}$', space_name):
+            QMessageBox.warning(self, "Invalid Name",
+                "Name must be lowercase letters, digits, and hyphens.\nMust start with a letter, 2-32 characters.")
+            return
+
+        conf_path = os.path.join(SPACES_DIR, f"{space_name}.conf")
+
+        if self.is_new and os.path.exists(conf_path):
+            QMessageBox.warning(self, "Exists", f"Space '{space_name}' already exists")
+            return
+
+        # Collect config from raw tab if it was edited
+        if self.raw_config.toPlainText().strip():
+            # Parse raw config
+            raw_config = configparser.ConfigParser()
+            raw_config.read_string(self.raw_config.toPlainText())
+            self.config = raw_config
+        else:
+            self._collect_config()
+
+        # Ensure name is set correctly
+        if not self.config.has_section("space"):
+            self.config.add_section("space")
+        self.config.set("space", "name", self.display_name.text() or space_name.title())
+
+        # Write
+        try:
+            os.makedirs(SPACES_DIR, exist_ok=True)
+            with open(conf_path, "w") as f:
+                self.config.write(f)
+        except PermissionError:
+            QMessageBox.warning(self, "Permission Denied",
+                f"Cannot write to {conf_path}.\nRun with appropriate privileges.")
+            return
+
+        # Regenerate systemd targets
+        gen_script = "/usr/libexec/kaal-spaces/generate-targets.sh"
+        if os.path.exists(gen_script):
+            import subprocess
+            subprocess.run([gen_script], capture_output=True, timeout=10)
+
+        QMessageBox.information(self, "Saved",
+            f"Space '{space_name}' saved successfully.\n\nSwitch to it: kaal-space switch {space_name}")
+        self.close()
+
+    def _delete_space(self):
+        """Delete the current custom space."""
+        if self.is_new:
+            return
+
+        reply = QMessageBox.question(self, "Confirm Delete",
+            f"Delete space '{self.space_name}'? This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        conf_path = os.path.join(SPACES_DIR, f"{self.space_name}.conf")
+        try:
+            os.remove(conf_path)
+            gen_script = "/usr/libexec/kaal-spaces/generate-targets.sh"
+            if os.path.exists(gen_script):
+                import subprocess
+                subprocess.run([gen_script], capture_output=True, timeout=10)
+            QMessageBox.information(self, "Deleted", f"Space '{self.space_name}' deleted.")
+            self.close()
+        except PermissionError:
+            QMessageBox.warning(self, "Permission Denied", "Cannot delete — insufficient privileges.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e))
+
+    def _export_json(self):
+        """Export the current config as JSON."""
+        self._collect_config()
+        export = {"space_name": self.name_input.text().strip().lower(), "sections": {}}
+        for section in self.config.sections():
+            export["sections"][section] = dict(self.config.items(section))
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Space", f"{export['space_name']}.json", "JSON (*.json)")
+        if file_path:
+            with open(file_path, "w") as f:
+                json.dump(export, f, indent=2)
+            QMessageBox.information(self, "Exported", f"Space exported to {file_path}")
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setApplicationName("KAAL Space Editor")
+
+    space_name = sys.argv[1] if len(sys.argv) > 1 else None
+    editor = SpaceEditor(space_name)
+    editor.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

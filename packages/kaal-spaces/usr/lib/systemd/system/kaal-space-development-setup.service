@@ -1,0 +1,13 @@
+[Unit]
+Description=KAAL OS Development Space Setup
+After=kaal-spaced.service
+Before=graphical-session.target
+
+# This is a one-shot service that applies the space configuration
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/kaal-spaces/apply-space.sh development
+RemainAfterExit=yes
+
+[Install]
+WantedBy=kaal-space-development.target

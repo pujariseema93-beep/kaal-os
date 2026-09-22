@@ -1,0 +1,7 @@
+---
+type: "view"
+interface: "python"
+name: "bootloader-select"
+entrypoint: "main.py"
+configuration: "bootloader-select.conf"
+reload: false

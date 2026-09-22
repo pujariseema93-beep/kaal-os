@@ -1,0 +1,14 @@
+# =============================================================================
+# module.desc — Calamares Module Descriptor for profile-select
+# =============================================================================
+# This file tells Calamares about the module: its type, interface, and
+# entry point. Place in /usr/lib/calamares/modules/profile-select/
+# =============================================================================
+
+---
+type: "view"
+interface: "python"
+name: "profile-select"
+entrypoint: "main.py"
+configuration: "profile-select.conf"
+reload: false

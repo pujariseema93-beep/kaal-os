@@ -1,0 +1,65 @@
+#!/bin/bash
+# =============================================================================
+# /etc/grub.d/07-distro-theme — Custom GRUB Theme & Branding Header
+# =============================================================================
+# This GRUB script handles distro-specific branding that appears at the top
+# of the GRUB menu. It loads the custom theme if one is installed, and
+# sets up the visual identity (colors, font, background).
+#
+# The actual theme files (background image, theme.txt, fonts) will be
+# designed later and installed to /boot/grub2/themes/kaal/.
+#
+# Until the theme is ready, this script ensures a clean default appearance.
+# =============================================================================
+
+set -e
+
+. "${datadir}/grub/grub-mkconfig_lib"
+
+# ---- Theme path ----
+THEME_DIR="/boot/grub2/themes/kaal"
+THEME_FILE="${THEME_DIR}/theme.txt"
+
+# ---- Prepare theme directory if it doesn't exist ----
+# This is a no-op until the theme is actually designed and packaged
+prepare_theme() {
+    if [ -f "$THEME_FILE" ]; then
+        echo "set theme=(\${root})${THEME_FILE#\${root}/}"
+        echo "loadfont (\${root})/boot/grub2/fonts/unicode.pf2"
+    else
+        # No theme installed yet — use clean text defaults
+        echo "# KAAL OS theme not yet installed — using defaults"
+    fi
+}
+
+# ---- Color scheme (used until full theme is ready) ----
+# These set the GRUB menu colors. When the theme.txt is installed,
+# these are overridden by the theme file.
+set_colors() {
+    echo "set color_normal=light-gray/black"
+    echo "set color_highlight=white/blue"
+    echo "set menu_color_normal=light-gray/black"
+    echo "set menu_color_highlight=white/blue"
+}
+
+# ---- Output the theme configuration ----
+prepare_theme
+set_colors
+
+# ---- Splash image (optional, set with theme later) ----
+# if [ -f "${THEME_DIR}/splash.png" ]; then
+#     echo "background_image (\${root})${THEME_DIR}/splash.png"
+# fi
+
+cat <<'THEME_EOF'
+
+# --- KAAL OS Boot Menu ---
+# Full custom theme will be applied here once designed (Phase 5).
+# Expected theme components:
+#   - Background image (splash.png, 1280x800 or matching GRUB_GFXMODE)
+#   - theme.txt with menu positioning, fonts, colors
+#   - Custom boot logo (centered, above menu)
+#   - Progress bar styling
+#   - Terminal box styling for boot messages
+
+THEME_EOF

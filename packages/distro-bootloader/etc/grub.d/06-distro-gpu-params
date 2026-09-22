@@ -1,0 +1,101 @@
+#!/bin/bash
+# =============================================================================
+# /etc/grub.d/06-distro-gpu-params — Dynamic GPU Kernel Parameter Detection
+# =============================================================================
+# This GRUB script runs during grub2-mkconfig. It detects the installed GPU(s)
+# via lspci and appends the correct kernel parameters to GRUB_CMDLINE_LINUX.
+#
+# It reads GPU parameter definitions from /etc/default/grub.d/10-distro-gpu.conf
+# and the base GRUB_CMDLINE_LINUX from /etc/default/grub.
+#
+# Priority: NVIDIA (discrete) > AMD (discrete) > Intel (integrated)
+# If hybrid (e.g. Intel iGPU + NVIDIA dGPU), both sets are applied.
+#
+# This script outputs a set_config block that modifies GRUB_CMDLINE_LINUX.
+# =============================================================================
+
+set -e
+
+. "${datadir}/grub/grub-mkconfig_lib"
+
+# Source the GPU parameter config
+GPU_CONF="/etc/default/grub.d/10-distro-gpu.conf"
+if [ -f "$GPU_CONF" ]; then
+    . "$GPU_CONF"
+fi
+
+# Source gaming/security params
+GAMING_PARAMS="${DISTRO_GAMING_PARAMS:-}"
+SECURITY_PARAMS="${DISTRO_SECURITY_PARAMS:-}"
+RESUME_PARAMS="${GRUB_CMDLINE_LINUX_RESUME:-}"
+
+# ---- Detect GPUs via lspci ----
+detect_gpu() {
+    local gpu_class
+    gpu_class=$(lspci -nn 2>/dev/null | grep -iE 'VGA compatible controller|3D controller|Display controller' || true)
+
+    HAS_NVIDIA=false
+    HAS_AMD=false
+    HAS_INTEL=false
+
+    if echo "$gpu_class" | grep -qiE 'NVIDIA|GeForce|Quadro|RTX|GTX'; then
+        HAS_NVIDIA=true
+    fi
+
+    if echo "$gpu_class" | grep -qiE 'AMD|Radeon|ATI|RDNA'; then
+        HAS_AMD=true
+    fi
+
+    if echo "$gpu_class" | grep -qiE 'Intel|UHD|Iris|Arc|HD Graphics'; then
+        HAS_INTEL=true
+    fi
+}
+
+detect_gpu
+
+# ---- Build the extra parameter string ----
+EXTRA_PARAMS=""
+
+if [ "$HAS_NVIDIA" = "true" ]; then
+    EXTRA_PARAMS="${EXTRA_PARAMS} ${DISTRO_NVIDIA_PARAMS:-}"
+    # Enable NVIDIA-specific Plymouth theme
+    echo "set plymouth_nvidia=1" >&2
+fi
+
+if [ "$HAS_AMD" = "true" ]; then
+    EXTRA_PARAMS="${EXTRA_PARAMS} ${DISTRO_AMD_PARAMS:-}"
+fi
+
+if [ "$HAS_INTEL" = "true" ]; then
+    EXTRA_PARAMS="${EXTRA_PARAMS} ${DISTRO_INTEL_PARAMS:-}"
+fi
+
+# Always append gaming and security params
+EXTRA_PARAMS="${EXTRA_PARAMS} ${GAMING_PARAMS} ${SECURITY_PARAMS}"
+
+# Append resume params if set
+if [ -n "$RESUME_PARAMS" ]; then
+    EXTRA_PARAMS="${EXTRA_PARAMS} ${RESUME_PARAMS}"
+fi
+
+# Clean up whitespace
+EXTRA_PARAMS=$(echo "$EXTRA_PARAMS" | sed 's/  */ /g' | sed 's/^ //;s/ $//')
+
+# ---- Emit GRUB config to merge params into GRUB_CMDLINE_LINUX ----
+# We use a grub-mkconfig trick: set GRUB_CMDLINE_LINUX in the environment
+# by writing a set-config that grub-mkconfig will source.
+cat <<GRUB_EOF
+# --- KAAL OS GPU + Gaming Kernel Parameters (auto-detected) ---
+# Detected: NVIDIA=${HAS_NVIDIA} AMD=${HAS_AMD} Intel=${HAS_INTEL}
+# Appended params: ${EXTRA_PARAMS}
+GRUB_CMDLINE_LINUX="\${GRUB_CMDLINE_LINUX} ${EXTRA_PARAMS}"
+GRUB_EOF
+
+# ---- Log detection for debugging ----
+cat >&2 <<LOG_EOF
+[distro-gpu-params] GPU detection results:
+  NVIDIA: ${HAS_NVIDIA}
+  AMD:    ${HAS_AMD}
+  Intel:  ${HAS_INTEL}
+  Extra kernel params: ${EXTRA_PARAMS}
+LOG_EOF

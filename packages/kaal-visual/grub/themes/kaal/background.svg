@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- KAAL OS GRUB Background — PLACEHOLDER -->
+  <!-- Replace this file with your final GRUB background (background.png, 1920x1080) -->
+  
+  <!-- Dark gradient background -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0a0a"/>
+      <stop offset="50%" stop-color="#0d0d0d"/>
+      <stop offset="100%" stop-color="#1a1a1a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  
+  <!-- KAAL text logo (centered, subtle) -->
+  <text x="960" y="200" font-family="DejaVu Sans" font-size="72" font-weight="bold"
+        text-anchor="middle" fill="#1a1a1a" letter-spacing="8">KAAL OS</text>
+  
+  <!-- Subtle accent line -->
+  <rect x="860" y="220" width="200" height="2" fill="#4A90D9" opacity="0.3"/>
+  
+  <!-- Subtitle -->
+  <text x="960" y="250" font-family="DejaVu Sans" font-size="14"
+        text-anchor="middle" fill="#333333" letter-spacing="2">Kaal Autonomous Artificial Intelligence Operating System</text>
+</svg>

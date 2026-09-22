@@ -1,0 +1,209 @@
+/* KAAL OS GTK Theme — CSS for GTK3/GTK4 applications
+ * Applied via ~/.config/gtk-3.0/gtk.css or system-wide.
+ * Dark theme matching KAAL OS visual identity.
+ */
+
+/* Default colors */
+@define-color kaal_bg #0d0d0d;
+@define-color kaal_bg_alt #1a1a1a;
+@define-color kaal_fg #e0e0e0;
+@define-color kaal_fg_dim #888888;
+@define-color kaal_accent #4A90D9;
+@define-color kaal_accent_hover #5AA0E9;
+@define-color kaal_accent_pressed #3A80C9;
+@define-color kaal_danger #c0392b;
+@define-color kaal_success #2ECC71;
+@define-color kaal_warning #FF6B35;
+@define-color kaal_border #333333;
+
+/* Base window */
+window, .background {
+    background-color: @kaal_bg;
+    color: @kaal_fg;
+}
+
+/* Headers */
+headerbar, .titlebar {
+    background-color: @kaal_bg;
+    color: @kaal_fg;
+    border-bottom: 1px solid @kaal_border;
+}
+
+headerbar:backdrop {
+    background-color: darker(@kaal_bg);
+}
+
+/* Buttons */
+button {
+    background-color: @kaal_bg_alt;
+    color: @kaal_fg;
+    border: 1px solid @kaal_border;
+    border-radius: 6px;
+    padding: 8px 16px;
+}
+
+button:hover {
+    background-color: #2a2a2a;
+    border-color: @kaal_accent;
+}
+
+button:active {
+    background-color: #111;
+}
+
+button.suggested-action {
+    background-color: @kaal_accent;
+    color: #fff;
+    border-color: @kaal_accent;
+}
+
+button.suggested-action:hover {
+    background-color: @kaal_accent_hover;
+}
+
+button.destructive-action {
+    background-color: @kaal_danger;
+    color: #fff;
+    border-color: @kaal_danger;
+}
+
+/* Entries */
+entry {
+    background-color: @kaal_bg_alt;
+    color: @kaal_fg;
+    border: 1px solid @kaal_border;
+    border-radius: 6px;
+    padding: 8px 12px;
+}
+
+entry:focus {
+    border-color: @kaal_accent;
+}
+
+/* Lists */
+list, listview {
+    background-color: @kaal_bg_alt;
+    color: @kaal_fg;
+}
+
+list row:selected {
+    background-color: @kaal_accent;
+    color: #fff;
+}
+
+list row:hover {
+    background-color: #222;
+}
+
+/* Notebooks */
+notebook tab {
+    background-color: @kaal_bg_alt;
+    color: @kaal_fg_dim;
+    padding: 8px 16px;
+}
+
+notebook tab:checked {
+    background-color: @kaal_bg;
+    color: @kaal_fg;
+    border-bottom: 2px solid @kaal_accent;
+}
+
+/* Scrollbars */
+scrollbar slider {
+    background-color: @kaal_border;
+    border-radius: 4px;
+    min-width: 8px;
+}
+
+scrollbar slider:hover {
+    background-color: #555;
+}
+
+/* Menus */
+menu, .menu, popover {
+    background-color: @kaal_bg_alt;
+    color: @kaal_fg;
+    border: 1px solid @kaal_border;
+    border-radius: 8px;
+}
+
+menuitem:hover, .menuitem:hover {
+    background-color: @kaal_accent;
+    color: #fff;
+}
+
+/* Progress bars */
+progressbar trough {
+    background-color: @kaal_bg_alt;
+    border-radius: 4px;
+}
+
+progressbar progress {
+    background-color: @kaal_accent;
+    border-radius: 4px;
+}
+
+/* Checkboxes and radios */
+check, radio {
+    background-color: @kaal_bg_alt;
+    border: 2px solid @kaal_border;
+    border-radius: 3px;
+}
+
+check:checked, radio:checked {
+    background-color: @kaal_accent;
+    border-color: @kaal_accent;
+}
+
+/* Switches */
+switch {
+    background-color: @kaal_bg_alt;
+    border: 1px solid @kaal_border;
+    border-radius: 16px;
+}
+
+switch:checked {
+    background-color: @kaal_accent;
+    border-color: @kaal_accent;
+}
+
+/* Tooltips */
+tooltip {
+    background-color: @kaal_bg_alt;
+    color: @kaal_fg;
+    border: 1px solid @kaal_border;
+    border-radius: 6px;
+}
+
+/* Sidebar */
+.sidebar, placessidebar {
+    background-color: @kaal_bg;
+    color: @kaal_fg_dim;
+}
+
+/* Calendar */
+calendar {
+    background-color: @kaal_bg_alt;
+    color: @kaal_fg;
+}
+
+calendar:selected {
+    background-color: @kaal_accent;
+    color: #fff;
+}
+
+/* Links */
+link, button.link {
+    color: @kaal_accent;
+}
+
+/* Separator */
+separator {
+    background-color: @kaal_border;
+}
+
+/* Window decorations (CSD) */
+decoration {
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}

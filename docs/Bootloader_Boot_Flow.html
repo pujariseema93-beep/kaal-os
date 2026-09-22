@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAAL OS Bootloader — Boot Flow & File Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  --bg: #0b0e14;
+  --surface: #131822;
+  --surface2: #1a2030;
+  --surface-elevated: #20283a;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-bright: rgba(255, 255, 255, 0.12);
+  --text: #e6e9ef;
+  --text-dim: #7c8794;
+  --accent: #39bae6;
+  --accent-dim: rgba(57, 186, 230, 0.1);
+  --green: #7fd962;
+  --green-dim: rgba(127, 217, 98, 0.1);
+  --amber: #f9b54a;
+  --amber-dim: rgba(249, 181, 74, 0.1);
+  --rose: #f07178;
+  --rose-dim: rgba(240, 113, 120, 0.1);
+  --orange: #ff8f40;
+  --orange-dim: rgba(255, 143, 64, 0.1);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f6f8; --surface: #ffffff; --surface2: #eef0f3; --surface-elevated: #f8f9fb;
+    --border: rgba(0,0,0,0.08); --border-bright: rgba(0,0,0,0.14);
+    --text: #1a2030; --text-dim: #6b7280;
+    --accent: #1e90b8; --accent-dim: rgba(30,144,184,0.08);
+    --green: #4d9b3e; --green-dim: rgba(77,155,62,0.08);
+    --amber: #d48806; --amber-dim: rgba(212,136,6,0.08);
+    --rose: #d4506a; --rose-dim: rgba(212,80,106,0.08);
+    --orange: #e5741c; --orange-dim: rgba(229,116,28,0.08);
+  }
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  background-image: radial-gradient(ellipse at 20% 0%, var(--accent-dim) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, var(--green-dim) 0%, transparent 40%);
+  color: var(--text); font-family: var(--font-body); padding: 40px; min-height: 100vh;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+.ve-card, .sec-head, .pipeline-step { animation: fadeUp 0.4s ease-out both; animation-delay: calc(var(--i,0) * 0.05s); }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:0.01ms !important; } }
+
+h1 { font-size: 36px; font-weight: 700; letter-spacing: -1px; margin-bottom: 6px; }
+.subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 40px; font-family: var(--font-mono); }
+h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 16px; }
+
+.sec-head {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1.5px; margin-top: 48px; margin-bottom: 20px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px;
+}
+.sec-head .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.sec-num { font-size: 11px; color: var(--text-dim); }
+
+.ve-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; position: relative; }
+.ve-card--hero { background: color-mix(in srgb, var(--surface) 88%, var(--accent) 12%); box-shadow: 0 4px 24px rgba(0,0,0,0.1); border-color: color-mix(in srgb, var(--border) 50%, var(--accent) 50%); padding: 24px 28px; }
+.ve-card--accent { border-left: 3px solid var(--accent); }
+.ve-card--green { border-left: 3px solid var(--green); }
+.ve-card--amber { border-left: 3px solid var(--amber); }
+.ve-card--orange { border-left: 3px solid var(--orange); }
+.ve-card--rose { border-left: 3px solid var(--rose); }
+.ve-card__label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.ve-card--accent .ve-card__label { color: var(--accent); }
+.ve-card--green .ve-card__label { color: var(--green); }
+.ve-card--amber .ve-card__label { color: var(--amber); }
+.ve-card--orange .ve-card__label { color: var(--orange); }
+.ve-card--rose .ve-card__label { color: var(--rose); }
+.ve-card__label::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.ve-card__desc { color: var(--text-dim); font-size: 13px; line-height: 1.7; }
+
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.card-grid > * { min-width: 0; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.two-col > * { min-width: 0; }
+
+.pipeline { display: flex; gap: 0; align-items: stretch; overflow-x: auto; padding-bottom: 8px; }
+.pipeline-step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; min-width: 140px; flex-shrink: 0; text-align: center; }
+.pipeline-step .step-num { font-family: var(--font-mono); font-size: 10px; font-weight: 600; margin-bottom: 6px; }
+.pipeline-step .step-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.pipeline-step .step-detail { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+.pipeline-step--accent { border-color: var(--accent-dim); } .pipeline-step--accent .step-num { color: var(--accent); }
+.pipeline-step--green { border-color: var(--green-dim); } .pipeline-step--green .step-num { color: var(--green); }
+.pipeline-step--amber { border-color: var(--amber-dim); } .pipeline-step--amber .step-num { color: var(--amber); }
+.pipeline-step--orange { border-color: var(--orange-dim); } .pipeline-step--orange .step-num { color: var(--orange); }
+.pipeline-arrow { display: flex; align-items: center; padding: 0 4px; color: var(--border-bright); font-size: 18px; flex-shrink: 0; }
+
+.dir-tree { font-family: var(--font-mono); font-size: 12px; line-height: 1.8; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; overflow-x: auto; white-space: pre; color: var(--text); }
+.dir-tree .ann { color: var(--text-dim); font-size: 11px; font-style: italic; }
+.dir-tree .hl { color: var(--accent); font-weight: 600; }
+.dir-tree .gp { color: var(--green); }
+.dir-tree .am { color: var(--amber); }
+.dir-tree .or { color: var(--orange); }
+.dir-tree .rs { color: var(--rose); }
+
+.tag { font-family: var(--font-mono); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 4px; background: var(--accent-dim); color: var(--accent); white-space: nowrap; }
+.tag--green { background: var(--green-dim); color: var(--green); }
+.tag--amber { background: var(--amber-dim); color: var(--amber); }
+.tag--rose { background: var(--rose-dim); color: var(--rose); }
+.tag--orange { background: var(--orange-dim); color: var(--orange); }
+
+.callout { background: var(--surface2); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; padding: 16px 20px; font-size: 13px; line-height: 1.7; color: var(--text-dim); margin-top: 20px; }
+.callout strong { color: var(--text); }
+.callout code { font-family: var(--font-mono); font-size: 11px; background: var(--accent-dim); color: var(--accent); padding: 1px 5px; border-radius: 3px; }
+
+@media (max-width: 768px) { body { padding: 20px; } .two-col { grid-template-columns: 1fr; } .pipeline { flex-wrap: wrap; gap: 6px; } .pipeline-arrow { display: none; } h1 { font-size: 28px; } }
+</style>
+</head>
+<body>
+
+<h1>KAAL OS Bootloader Base</h1>
+<p class="subtitle">Boot Flow Diagram & File Structure &middot; v0.1 &middot; 2026-09-08</p>
+
+<!-- BOOT FLOW -->
+<div id="s1" class="sec-head" style="--i:0">
+  <span class="dot" style="background:var(--accent)"></span>
+  <span class="sec-num">01</span> Boot Flow (Power On &rarr; Desktop)
+</div>
+
+<div class="ve-card" style="--i:1; margin-bottom: 16px;">
+  <div class="ve-card__label" style="color: var(--accent);">Complete Boot Sequence</div>
+  <div class="pipeline" style="margin-top: 16px;">
+    <div class="pipeline-step pipeline-step--accent">
+      <div class="step-num">POWER</div>
+      <div class="step-name">Power On</div>
+      <div class="step-detail">UEFI firmware<br>POST + init</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--accent">
+      <div class="step-num">BOOT</div>
+      <div class="step-name">Bootloader</div>
+      <div class="step-detail">GRUB2 (default)<br>or systemd-boot</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--green">
+      <div class="step-num">DETECT</div>
+      <div class="step-name">GPU Detect</div>
+      <div class="step-detail">lspci in GRUB<br>script 06-distro</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--green">
+      <div class="step-num">PARAMS</div>
+      <div class="step-name">Kernel CMD</div>
+      <div class="step-detail">NVIDIA/AMD/Intel<br>params injected</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--amber">
+      <div class="step-num">INITRAMFS</div>
+      <div class="step-name">Dracut</div>
+      <div class="step-detail">GPU drivers<br>pre-loaded</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--amber">
+      <div class="step-num">MOUNT</div>
+      <div class="step-name">Root FS</div>
+      <div class="step-detail">Btrfs + snapshot<br>subvolume</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--orange">
+      <div class="step-num">SYSTEMD</div>
+      <div class="step-name">systemd init</div>
+      <div class="step-detail">Services start<br>Update check fires</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--orange">
+      <div class="step-num">PLYMOUTH</div>
+      <div class="step-name">Boot Splash</div>
+      <div class="step-detail">Animated splash<br>(theme TBD)</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step pipeline-step--accent">
+      <div class="step-num">DE</div>
+      <div class="step-name">Desktop</div>
+      <div class="step-detail">SDDM/GDM login<br>&rarr; DE session</div>
+    </div>
+  </div>
+</div>
+
+<!-- FILE MAP -->
+<div id="s2" class="sec-head" style="--i:2">
+  <span class="dot" style="background:var(--green)"></span>
+  <span class="sec-num">02</span> Package File Structure
+</div>
+
+<div class="ve-card" style="--i:3">
+  <div class="ve-card__label" style="color: var(--green);">Complete File Tree</div>
+  <pre class="dir-tree" style="margin-top: 16px;"><span class="hl">distro-bootloader/</span>
+├── etc/
+│   ├── default/
+│   │   ├── <span class="hl">grub</span>                              <span class="ann">— Main GRUB2 config (timeout, cmdline, terminal)</span>
+│   │   └── grub.d/
+│   │       ├── <span class="hl">10-distro-gpu.conf</span>                <span class="ann">— GPU param definitions (NVIDIA/AMD/Intel)</span>
+│   │       └── <span class="hl">20-distro-resume.conf</span>            <span class="ann">— Hibernate resume UUID (auto-populated)</span>
+│   ├── grub.d/
+│   │   ├── <span class="gp">06-distro-gpu-params</span>                <span class="ann">— GRUB script: lspci detect + inject params</span>
+│   │   ├── <span class="gp">07-distro-theme</span>                     <span class="ann">— GRUB script: theme/branding (placeholder)</span>
+│   │   └── <span class="gp">25-distro-snapshots</span>                  <span class="ann">— GRUB script: btrfs snapshot entries</span>
+│   └── dracut.conf.d/
+│       ├── <span class="am">10-distro-gpu.conf</span>                  <span class="ann">— GPU drivers in initramfs (nvidia/amdgpu/i915)</span>
+│       ├── <span class="am">20-distro-filesystem.conf</span>           <span class="ann">— Btrfs, LUKS, NVMe, zram, USB modules</span>
+│       └── <span class="am">30-distro-base.conf</span>                  <span class="ann">— Plymouth, zstd compress, systemd, network</span>
+│
+└── usr/
+    ├── libexec/distro-bootloader/
+    │   ├── <span class="or">distro-bootloader-setup</span>              <span class="ann">— Main script: install/switch/regenerate/status</span>
+    │   └── <span class="or">90-distro-kernel-install</span>             <span class="ann">— kernel-install hook: auto-update entries</span>
+    └── share/distro-bootloader/
+        ├── systemd-boot/
+        │   ├── <span class="rs">loader.conf</span>                       <span class="ann">— systemd-boot main config</span>
+        │   ├── <span class="rs">entry-distro.conf.template</span>        <span class="ann">— Main boot entry template</span>
+        │   └── <span class="rs">entry-distro-fallback.conf.template</span> <span class="ann">— Fallback/safe-mode entry (nomodeset)</span>
+        ├── kernel-params/
+        │   └── <span class="hl">REFERENCE.md</span>                    <span class="ann">— Full kernel parameter documentation</span>
+        └── doc/
+            └── <span class="hl">README.md</span>                        <span class="ann">— Package overview and usage guide</span></pre>
+</div>
+
+<!-- GPU DETECTION -->
+<div id="s3" class="sec-head" style="--i:4">
+  <span class="dot" style="background:var(--amber)"></span>
+  <span class="sec-num">03</span> GPU Auto-Detection Logic
+</div>
+
+<div class="two-col" style="--i:5">
+  <div class="ve-card ve-card--green">
+    <div class="ve-card__label">Detection Script: 06-distro-gpu-params</div>
+    <div class="ve-card__desc">
+      Runs <code>lspci</code> during <code>grub2-mkconfig</code> and checks for GPU vendor strings. Supports hybrid laptops (dual GPU) by applying both discrete and integrated params.
+      <br><br>
+      <strong>Detection priority:</strong>
+      <br>
+      1. NVIDIA (RTX/GTX/Quadro) &rarr; injects nvidia-drm.modeset=1, blacklist nouveau, pre-load nvidia modules
+      <br>
+      2. AMD (Radeon/RDNA) &rarr; injects amdgpu.ppfeaturemask, pre-load amdgpu
+      <br>
+      3. Intel (UHD/Iris/Arc) &rarr; injects i915.enable_guc=3, fastboot
+      <br>
+      4. Hybrid &rarr; applies both discrete + integrated params
+    </div>
+  </div>
+  <div class="ve-card ve-card--amber">
+    <div class="ve-card__label">Always-Applied Params</div>
+    <div class="ve-card__desc">
+      Regardless of GPU, these gaming/performance parameters are always added:
+      <br><br>
+      <code>split_lock_detect=off</code> &mdash; fixes emulator/Wine performance
+      <br>
+      <code>preempt=full</code> &mdash; low-latency scheduling
+      <br>
+      <code>transparent_hugepage=madvise</code> &mdash; avoids latency spikes
+      <br>
+      <code>mitigations=off</code> &mdash; disables CPU mitigations (configurable)
+      <br>
+      <code>loglevel=3</code> &mdash; clean boot (Plymouth handles visuals)
+      <br>
+      <code>systemd.show_status=0</code> &mdash; hide systemd messages
+    </div>
+  </div>
+</div>
+
+<!-- BOOTLOADER COMPARISON -->
+<div id="s4" class="sec-head" style="--i:6">
+  <span class="dot" style="background:var(--accent)"></span>
+  <span class="sec-num">04</span> Bootloader Comparison
+</div>
+
+<div class="two-col" style="--i:7">
+  <div class="ve-card ve-card--accent">
+    <div class="ve-card__label">GRUB2 (Default)</div>
+    <div class="ve-card__desc">
+      Fedora's default bootloader. Mature, feature-rich, supports both UEFI and BIOS.
+      <br><br>
+      <span class="tag">UEFI + BIOS</span>
+      <span class="tag">Btrfs snapshots</span>
+      <span class="tag">Theme support</span>
+      <span class="tag">OS Prober</span>
+      <span class="tag">Scriptable</span>
+      <br><br>
+      Pros: Works everywhere, snapshot booting via snapper plugin, large community support
+      <br>
+      Cons: More complex config, slightly slower boot than systemd-boot
+    </div>
+  </div>
+  <div class="ve-card ve-card--rose">
+    <div class="ve-card__label">systemd-boot (Alternative)</div>
+    <div class="ve-card__desc">
+      Simpler, faster UEFI-only bootloader. Individual .conf entries per kernel.
+      <br><br>
+      <span class="tag tag--rose">UEFI only</span>
+      <span class="tag tag--rose">Simple .conf entries</span>
+      <span class="tag tag--rose">Fast boot</span>
+      <span class="tag tag--rose">kernel-install hooks</span>
+      <br><br>
+      Pros: Faster, simpler config, native kernel-install integration
+      <br>
+      Cons: UEFI only, no btrfs snapshot menu (manual rollback), less themeable
+    </div>
+  </div>
+</div>
+
+<!-- SAFETY -->
+<div id="s5" class="sec-head" style="--i:8">
+  <span class="dot" style="background:var(--orange)"></span>
+  <span class="sec-num">05</span> Safety & Recovery
+</div>
+
+<div class="card-grid" style="--i:9">
+  <div class="ve-card ve-card--orange">
+    <div class="ve-card__label">Fallback Boot Entry</div>
+    <div class="ve-card__desc">
+      Both GRUB and systemd-boot include a fallback entry that boots with <code>nomodeset</code> and all GPU drivers blacklisted. Guarantees a working TTY even if drivers are completely broken.
+    </div>
+  </div>
+  <div class="ve-card ve-card--orange">
+    <div class="ve-card__label">Btrfs Snapshot Rollback</div>
+    <div class="ve-card__desc">
+      If snapper or timeshift is active, snapshot boot entries appear in the GRUB menu. Boot into any pre-update snapshot to roll back a broken system in seconds.
+    </div>
+  </div>
+  <div class="ve-card ve-card--orange">
+    <div class="ve-card__label">Dracut Hostonly</div>
+    <div class="ve-card__desc">
+      Initramfs uses <code>hostonly=yes</code> &mdash; only includes modules for the current hardware. Smaller initramfs, faster boot. A full fallback initramfs is also generated for the safe-mode entry.
+    </div>
+  </div>
+</div>
+
+<div class="callout" style="--i:10">
+  <strong>Theme placeholder:</strong> The <code>07-distro-theme</code> GRUB script and the Plymouth splash are intentionally left as placeholders. When the distro's visual identity is designed (Phase 5), the theme files (background, logo, theme.txt, Plymouth theme) drop into the existing infrastructure without any structural changes needed.
+</div>
+
+<div style="text-align: center; margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">
+  KAAL OS Bootloader Base v0.1 &middot; 15 files &middot; GRUB2 + systemd-boot + Dracut &middot; 2026-09-08
+</div>
+
+</body>
+</html>

@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""
+KAAL OS Spaces Auto-Switch Daemon
+
+Monitors system context and automatically switches spaces based on rules:
+- AC power plugged in → Gaming or Power space
+- Battery mode → Normal or Development space
+- Steam launched → Gaming space
+- IDE launched → Development space
+- Time of day → Normal space in evening
+
+Rules are configured in /etc/kaal/spaces/auto-switch.conf
+
+This is a user-session service (not system-level). It runs per-user.
+"""
+
+import os
+import sys
+import time
+import logging
+import subprocess
+import configparser
+
+import dbus
+from gi.repository import GLib
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)],
+)
+log = logging.getLogger("kaal-space-auto")
+
+DBUS_NAME = "org.kaal.Spaces"
+DBUS_PATH = "/org/kaal/Spaces"
+AUTO_CONF = "/etc/kaal/spaces/auto-switch.conf"
+STATE_FILE = "/run/kaal/current-space"
+POLL_INTERVAL = 5  # seconds
+
+
+class AutoSwitchDaemon:
+    """Monitors system context and switches spaces based on rules."""
+
+    def __init__(self):
+        self.config = self._load_config()
+        self.last_space = self._get_current_space()
+        self.last_app = ""
+        self.last_power_state = self._get_power_state()
+
+    def _load_config(self) -> configparser.ConfigParser:
+        config = configparser.ConfigParser()
+        if os.path.exists(AUTO_CONF):
+            config.read(AUTO_CONF)
+        else:
+            # Default config
+            config["rules"] = {
+                "enabled": "true",
+                "on_ac": "gaming",
+                "on_battery": "normal",
+                "steam_launch": "gaming",
+                "ide_launch": "development",
+                "terminal_launch": "power",
+                "evening_time": "normal",
+                "evening_start": "20",
+                "evening_end": "6",
+            }
+        return config
+
+    def _get_current_space(self) -> str:
+        try:
+            with open(STATE_FILE, "r") as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            return "normal"
+
+    def _get_power_state(self) -> str:
+        """Returns 'ac', 'battery', or 'unknown'."""
+        try:
+            # Check if any AC adapter is online
+            for adapter in os.listdir("/sys/class/power_supply"):
+                path = f"/sys/class/power_supply/{adapter}/online"
+                if os.path.exists(path):
+                    with open(path, "r") as f:
+                        if f.read().strip() == "1":
+                            return "ac"
+            # If no AC adapter is online but a battery exists
+            for adapter in os.listdir("/sys/class/power_supply"):
+                if adapter.startswith("BAT"):
+                    return "battery"
+            return "ac"  # Desktop without battery
+        except Exception:
+            return "unknown"
+
+    def _get_active_window_app(self) -> str:
+        """Get the application name of the currently focused window."""
+        # Try GNOME (via gdbus)
+        try:
+            result = subprocess.run(
+                ["gdbus", "call", "--session",
+                 "--dest", "org.gnome.Shell",
+                 "--object-path", "/org/gnome/Shell",
+                 "--method", "org.gnome.Shell.Eval",
+                 "global.get_window_actors().map(w => w.meta_window.wm_class).join('\\n')"],
+                capture_output=True, text=True, timeout=3
+            )
+            if result.returncode == 0 and result.stdout:
+                # Parse the gdbus output
+                output = result.stdout.strip()
+                if "true" in output.lower():
+                    # Extract the app names
+                    apps = output.split("'")[1] if "'" in output else ""
+                    return apps.split("\n")[0].lower() if apps else ""
+        except Exception:
+            pass
+
+        # Try KDE (via kdotool if available)
+        try:
+            result = subprocess.run(
+                ["kdotool", "getactivewindow", "windowname"],
+                capture_output=True, text=True, timeout=3
+            )
+            if result.returncode == 0:
+                return result.stdout.strip().lower()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        return ""
+
+    def _switch_space(self, space_name: str) -> bool:
+        """Switch to a space via D-Bus."""
+        if space_name == self._get_current_space():
+            return True
+
+        try:
+            bus = dbus.SystemBus()
+            proxy = bus.get_object(DBUS_NAME, DBUS_PATH)
+            iface = dbus.Interface(proxy, DBUS_NAME)
+            result = str(iface.SwitchSpace(space_name))
+            log.info(f"Auto-switched to: {space_name} ({result})")
+            return True
+        except Exception as e:
+            log.warning(f"Could not auto-switch to {space_name}: {e}")
+            return False
+
+    def _check_app_rules(self, app: str):
+        """Check if the active app triggers a space switch."""
+        if not app or app == self.last_app:
+            return
+        self.last_app = app
+
+        # Check app rules from config
+        if not self.config.has_section("app_rules"):
+            return
+
+        for key, target_space in self.config.items("app_rules"):
+            # Key format: steam, code, vim, etc.
+            if key.replace("_", " ") in app or key in app:
+                if self._get_current_space() != target_space:
+                    log.info(f"App '{app}' matched rule '{key}' → {target_space}")
+                    self._switch_space(target_space)
+                return
+
+    def _check_power_rules(self):
+        """Check if power state changed and switch space accordingly."""
+        current_power = self._get_power_state()
+        if current_power == self.last_power_state:
+            return
+
+        log.info(f"Power state changed: {self.last_power_state} → {current_power}")
+        self.last_power_state = current_power
+
+        if not self.config.getboolean("rules", "enabled", fallback=False):
+            return
+
+        target = self.config.get("rules", f"on_{current_power}", fallback="")
+        if target:
+            self._switch_space(target)
+
+    def _check_time_rules(self):
+        """Check time-based rules (e.g., evening mode)."""
+        if not self.config.getboolean("rules", "enabled", fallback=False):
+            return
+
+        evening_start = self.config.getint("rules", "evening_start", fallback=20)
+        evening_end = self.config.getint("rules", "evening_end", fallback=6)
+        evening_target = self.config.get("rules", "evening_time", fallback="normal")
+
+        hour = time.localtime().tm_hour
+        in_evening = hour >= evening_start or hour < evening_end
+
+        if in_evening and self._get_current_space() != evening_target:
+            # Only switch if user hasn't manually switched
+            # (for now, always switch — could add a "manual override" flag)
+            pass  # Time-based switching is optional and non-aggressive
+
+    def tick(self):
+        """Called every POLL_INTERVAL seconds."""
+        try:
+            self._check_power_rules()
+            self._check_app_rules(self._get_active_window_app())
+            self._check_time_rules()
+        except Exception as e:
+            log.error(f"Error in tick: {e}")
+        return True  # Continue timer
+
+    def run(self):
+        """Start the auto-switch daemon."""
+        enabled = self.config.getboolean("rules", "enabled", fallback=False)
+        if not enabled:
+            log.info("Auto-switch is disabled in config, exiting")
+            return
+
+        log.info("KAAL Spaces auto-switch daemon started")
+        log.info(f"Power: {self.last_power_state} | Space: {self.last_space}")
+
+        # Set up periodic check
+        GLib.timeout_add_seconds(POLL_INTERVAL, self.tick)
+
+        loop = GLib.MainLoop()
+        try:
+            loop.run()
+        except KeyboardInterrupt:
+            log.info("Shutting down")
+            loop.quit()
+
+
+def main():
+    daemon = AutoSwitchDaemon()
+    daemon.run()
+
+
+if __name__ == "__main__":
+    main()

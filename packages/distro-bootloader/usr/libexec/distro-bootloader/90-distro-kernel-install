@@ -1,0 +1,139 @@
+#!/bin/bash
+# =============================================================================
+# /usr/libexec/distro-bootloader/90-distro-kernel-install
+# =============================================================================
+# kernel-install hook — runs automatically whenever a kernel is installed,
+# updated, or removed. Keeps the bootloader entries in sync with the
+# installed kernels.
+#
+# Installed to: /etc/kernel/install.d/90-distro-kernel-install.install
+# (symlinked from /usr/libexec/distro-bootloader/)
+#
+# This hook works with both GRUB and systemd-boot:
+#   - GRUB:        runs grub2-mkconfig to regenerate the full menu
+#   - systemd-boot: creates/removes individual .conf entries per kernel
+# =============================================================================
+
+set -euo pipefail
+
+# ---- Constants ----
+DISTRO_DIR="distro"
+ESP_PATH="${ESP_PATH:-/boot/efi}"
+SD_BOOT_TEMPLATES="/usr/share/distro-bootloader/systemd-boot"
+ENTRIES_DIR="$ESP_PATH/loader/entries"
+
+# ---- Get active bootloader ----
+get_active_bootloader() {
+    if [ -f /etc/distro-bootloader/active ]; then
+        cat /etc/distro-bootloader/active
+    else
+        echo "grub2"
+    fi
+}
+
+# ---- Detect GPU and build params ----
+build_kernel_params() {
+    local params="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 nvme_load=yes"
+    local gpu_info
+    gpu_info=$(lspci -nn 2>/dev/null | grep -iE 'VGA compatible|3D controller|Display controller' || true)
+
+    if echo "$gpu_info" | grep -qiE 'NVIDIA|GeForce|Quadro|RTX|GTX'; then
+        params="$params nvidia-drm.modeset=1 nvidia_drm.fbdev=1 modprobe.blacklist=nouveau rd.driver.pre=nvidia rd.driver.pre=nvidia_modeset rd.driver.pre=nvidia_drm rd.driver.pre=nvidia_uvm"
+    fi
+
+    if echo "$gpu_info" | grep -qiE 'AMD|Radeon|ATI|RDNA'; then
+        params="$params amdgpu.ppfeaturemask=0xffffffff rd.driver.pre=amdgpu amdgpu.si_support=amdgpu amdgpu.cik_support=amdgpu"
+    fi
+
+    if echo "$gpu_info" | grep -qiE 'Intel|UHD|Iris|Arc|HD Graphics'; then
+        params="$params i915.enable_guc=3 i915.fastboot=1 rd.driver.pre=i915"
+    fi
+
+    # Gaming + security
+    params="$params split_lock_detect=off preempt=full transparent_hugepage=madvise mitigations=off"
+
+    # Resume
+    if [ -f /etc/default/grub.d/20-distro-resume.conf ]; then
+        . /etc/default/grub.d/20-distro-resume.conf
+        if [ -n "${GRUB_CMDLINE_LINUX_RESUME:-}" ]; then
+            params="$params $GRUB_CMDLINE_LINUX_RESUME"
+        fi
+    fi
+
+    echo "$params" | sed 's/  */ /g' | sed 's/^ //;s/ $//'
+}
+
+# ---- Get root UUID ----
+get_root_uuid() {
+    findmnt -n -o UUID / 2>/dev/null || echo "ROOT_UUID_PLACEHOLDER"
+}
+
+# =============================================================================
+# Main logic
+# =============================================================================
+
+COMMAND="${1:-}"
+KERNEL_VERSION="${2:-}"
+
+case "$COMMAND" in
+    add)
+        info "kernel-install: adding kernel $KERNEL_VERSION"
+        local bootloader
+        bootloader=$(get_active_bootloader)
+
+        if [ "$bootloader" = "systemd-boot" ]; then
+            # Create systemd-boot entry for this kernel
+            mkdir -p "$ENTRIES_DIR"
+            mkdir -p "$ESP_PATH/$DISTRO_DIR"
+
+            # Copy kernel + initramfs to ESP
+            cp "/lib/modules/$KERNEL_VERSION/vmlinuz" "$ESP_PATH/$DISTRO_DIR/vmlinuz" 2>/dev/null || \
+                cp "/boot/vmlinuz-$KERNEL_VERSION" "$ESP_PATH/$DISTRO_DIR/vmlinuz"
+            cp "/boot/initramfs-$KERNEL_VERSION.img" "$ESP_PATH/$DISTRO_DIR/initramfs.img"
+
+            # Generate entry from template
+            local root_uuid machine_id kernel_params
+            root_uuid=$(get_root_uuid)
+            machine_id=$(cat /etc/machine-id 2>/dev/null || echo "00000000000000000000000000000000")
+            kernel_params=$(build_kernel_params)
+
+            sed \
+                -e "s/__KERNEL_VERSION__/$KERNEL_VERSION/g" \
+                -e "s/__MACHINE_ID__/$machine_id/g" \
+                -e "s/__DISTRO_DIR__/$DISTRO_DIR/g" \
+                -e "s/__ROOT_UUID__/$root_uuid/g" \
+                -e "s/__KERNEL_PARAMS__/$kernel_params/g" \
+                "$SD_BOOT_TEMPLATES/entry-distro.conf.template" \
+                > "$ENTRIES_DIR/${DISTRO_DIR}-${KERNEL_VERSION}.conf"
+
+            echo "Created entry: $ENTRIES_DIR/${DISTRO_DIR}-${KERNEL_VERSION}.conf"
+        else
+            # GRUB — just regenerate the whole config
+            grub2-mkconfig -o "${ESP_PATH}/EFI/${DISTRO_DIR}/grub.cfg" 2>/dev/null || \
+                grub2-mkconfig -o /boot/grub2/grub.cfg
+            echo "GRUB config regenerated for kernel $KERNEL_VERSION"
+        fi
+        ;;
+
+    remove)
+        info "kernel-install: removing kernel $KERNEL_VERSION"
+        local bootloader
+        bootloader=$(get_active_bootloader)
+
+        if [ "$bootloader" = "systemd-boot" ]; then
+            # Remove the entry for this kernel
+            rm -f "$ENTRIES_DIR/${DISTRO_DIR}-${KERNEL_VERSION}.conf"
+            echo "Removed entry for kernel $KERNEL_VERSION"
+        else
+            # GRUB — regenerate without the removed kernel
+            grub2-mkconfig -o "${ESP_PATH}/EFI/${DISTRO_DIR}/grub.cfg" 2>/dev/null || \
+                grub2-mkconfig -o /boot/grub2/grub.cfg
+            echo "GRUB config regenerated (kernel $KERNEL_VERSION removed)"
+        fi
+        ;;
+
+    *)
+        # Unknown command — do nothing
+        exit 0
+        ;;
+esac

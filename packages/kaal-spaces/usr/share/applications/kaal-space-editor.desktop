@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=KAAL Space Editor
+Name[hi]=काल स्पेस एडिटर
+Comment=Create and edit custom KAAL Spaces
+Comment[hi]=कस्टम काल स्पेस बनाएं और संपादित करें
+Exec=kaal-space-editor
+Icon=kaal-spaces
+Categories=System;Settings;Utility;
+Terminal=false
+StartupNotify=true
+Keywords=space;create;edit;custom;profile;configure;

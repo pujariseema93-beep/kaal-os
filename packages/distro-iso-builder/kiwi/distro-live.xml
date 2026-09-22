@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    =============================================================================
+    kiwi-NG Appliance Configuration for KAAL OS
+    =============================================================================
+    Alternative build method using kiwi-NG (instead of livemedia-creator).
+    kiwi-NG is a more modern, flexible image builder that supports
+    multiple output formats (ISO, raw disk, qcow2, OCI container).
+
+    Build command:
+      sudo kiwi-ng system build \
+        --description kiwi/distro-live.xml \
+        --target-dir /var/tmp/kiwi-build
+
+    This produces a live ISO in the target directory.
+    =============================================================================
+-->
+<image
+    name="KAAL OS"
+    displayname="KAAL OS Live"
+    schemaversion="9.0"
+    filesystem="btrfs">
+
+    <!-- ==== Description ==== -->
+    <description type="system">
+        <author>KAAL OS Team</author>
+        <contact>contact@distro.example.com</contact>
+        <specification>Custom Linux distribution for gamers, power users, developers, and daily life.</specification>
+    </description>
+
+    <!-- ==== Preferences ==== -->
+    <preferences>
+        <!-- Bootloader configuration -->
+        <bootloader-theme>distro</bootloader-theme>
+        <bootsplash-theme>distro</bootsplash-theme>
+
+        <!-- Image type: Live ISO -->
+        <type
+            image="iso"
+            firmware="uefi"
+            kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
+            bootpartition="false"
+            bootkernel="custom"
+            hybrid="true"
+            hybridpersistent="true"
+            hybridpersistent_filesystem="ext4"
+            fsmountoptions="compress=zstd:3"
+            splash="distro" />
+
+        <!-- Version -->
+        <version>0.1.0</version>
+        <packagemanager>dnf5</packagemanager>
+
+        <!-- Locale -->
+        <locale>en_US.UTF-8</locale>
+        <keytable>us</keytable>
+        <timezone>Asia/Kolkata</timezone>
+
+        <!-- RPM exclusions -->
+        <rpm-excludelist>
+            <exclude name="fedora-release"/>
+            <exclude name="fedora-release-identity"/>
+            <exclude name="fedora-logos"/>
+            <exclude name="fedora-backgrounds"/>
+            <exclude name="sendmail"/>
+            <exclude name="postfix"/>
+            <exclude name="nano"/>
+            <exclude name="nano-default-editor"/>
+        </rpm-excludelist>
+    </preferences>
+
+    <!-- ==== Users ==== -->
+    <users>
+        <!-- Live user (no password, autologin) -->
+        <user
+            name="liveuser"
+            password=""
+            home="/home/liveuser"
+            shell="/bin/bash"
+            groups="wheel"
+            realname="KAAL OS Live User" />
+    </users>
+
+    <!-- ==== Repositories ==== -->
+    <repository>
+        <source path="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/"/>
+    </repository>
+    <repository>
+        <source path="https://download.fedoraproject.org/pub/fedora/linux/updates/42/Everything/x86_64/"/>
+    </repository>
+    <repository>
+        <source path="https://download1.rpmfusion.org/free/fedora/releases/42/Everything/x86_64/os/"/>
+    </repository>
+    <repository>
+        <source path="https://download1.rpmfusion.org/free/fedora/updates/42/Everything/x86_64/"/>
+    </repository>
+    <repository>
+        <source path="https://download1.rpmfusion.org/nonfree/fedora/releases/42/Everything/x86_64/os/"/>
+    </repository>
+    <repository>
+        <source path="https://download1.rpmfusion.org/nonfree/fedora/updates/42/Everything/x86_64/"/>
+    </repository>
+
+    <!-- ==== Packages ==== -->
+    <packages type="image">
+        <!-- Base system -->
+        <package name="@core"/>
+        <package name="@standard"/>
+        <package name="@hardware-support"/>
+        <package name="@base-x"/>
+        <package name="@fonts"/>
+        <package name="@wayland"/>
+        <package name="@kde-desktop"/>
+        <package name="@gnome-desktop"/>
+        <package name="@xfce-desktop"/>
+        <package name="@cinnamon-desktop"/>
+        <package name="@development-tools"/>
+        <package name="@container-management"/>
+
+        <!-- Bootloader -->
+        <package name="grub2"/>
+        <package name="grub2-efi-x64"/>
+        <package name="grub2-tools"/>
+        <package name="shim-x64"/>
+        <package name="dracut"/>
+        <package name="systemd-boot"/>
+
+        <!-- Audio -->
+        <package name="pipewire"/>
+        <package name="pipewire-alsa"/>
+        <package name="pipewire-pulseaudio"/>
+        <package name="wireplumber"/>
+
+        <!-- GPU drivers -->
+        <package name="akmod-nvidia"/>
+        <package name="akmod-nvidia-open"/>
+        <package name="mesa-vulkan-drivers"/>
+        <package name="mesa-dri-drivers"/>
+        <package name="vulkan-tools"/>
+
+        <!-- Gaming -->
+        <package name="steam"/>
+        <package name="lutris"/>
+        <package name="gamemode"/>
+        <package name="mangohud"/>
+        <package name="gamescope"/>
+        <package name="wine"/>
+        <package name="protonup-qt"/>
+
+        <!-- Installer -->
+        <package name="calamares"/>
+        <package name="python3-pyqt5"/>
+
+        <!-- Filesystem -->
+        <package name="btrfs-progs"/>
+        <package name="ntfs-3g"/>
+        <package name="exfatprogs"/>
+        <package name="dosfstools"/>
+
+        <!-- System tools -->
+        <package name="NetworkManager"/>
+        <package name="NetworkManager-wifi"/>
+        <package name="blueman"/>
+        <package name="bluez"/>
+        <package name="fwupd"/>
+        <package name="flatpak"/>
+        <package name="firefox"/>
+        <package name="git"/>
+
+        <!-- Live image tools -->
+        <package name="livecd-tools"/>
+        <package name="xorriso"/>
+        <package name="isomd5sum"/>
+    </packages>
+
+    <!-- ==== Bootstrap packages (installed first) ==== -->
+    <packages type="bootstrap">
+        <package name="filesystem"/>
+        <package name="glibc"/>
+        <package name="dnf5"/>
+        <package name="rpm"/>
+        <package name="basesystem"/>
+        <package name="coreutils"/>
+    </packages>
+
+    <!-- ==== Delete packages ==== -->
+    <packages type="delete">
+        <package name="fedora-release"/>
+        <package name="fedora-release-identity"/>
+        <package name="fedora-logos"/>
+        <package name="sendmail"/>
+        <package name="postfix"/>
+        <package name="nano"/>
+    </packages>
+
+</image>

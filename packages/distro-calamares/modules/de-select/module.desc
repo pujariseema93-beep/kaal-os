@@ -1,0 +1,7 @@
+---
+type: "view"
+interface: "python"
+name: "de-select"
+entrypoint: "main.py"
+configuration: "de-select.conf"
+reload: false

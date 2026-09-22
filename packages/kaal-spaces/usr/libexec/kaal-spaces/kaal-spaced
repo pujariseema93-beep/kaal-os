@@ -1,0 +1,691 @@
+#!/usr/bin/env python3
+"""
+KAAL OS Spaces Daemon (kaal-spaced) — v2 with Dynamic Space Support
+
+A D-Bus system service that manages space switching for KAAL OS.
+Spaces are discovered dynamically from /etc/kaal/spaces/*.conf — users
+can create custom spaces without modifying the daemon.
+
+D-Bus interface: org.kaal.Spaces
+Object path: /org/kaal/Spaces
+
+Methods:
+    SwitchSpace(s space_name) -> s
+    GetCurrentSpace() -> s
+    ListSpaces() -> aa{sv}
+    GetSpaceInfo(s space_name) -> a{sv}
+    SetDefaultSpace(s space_name) -> s
+    GetDefaultSpace() -> s
+    CreateSpace(s name, s template) -> s       # Create from template
+    DeleteSpace(s name) -> s                    # Delete a custom space
+    CloneSpace(s source, s dest) -> s           # Clone an existing space
+    ExportSpace(s name) -> s                     # Returns JSON config
+    ImportSpace(s json_config) -> s              # Imports a space from JSON
+
+Signals:
+    SpaceChanged(s old_space, s new_space)
+    SpaceCreated(s space_name)
+    SpaceDeleted(s space_name)
+"""
+
+import os
+import sys
+import json
+import shutil
+import logging
+import subprocess
+import configparser
+import glob
+
+import dbus
+import dbus.service
+import dbus.glib
+from gi.repository import GLib
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+SPACES_DIR = "/etc/kaal/spaces"
+TEMPLATES_DIR = "/usr/share/kaal/spaces/templates"
+STATE_DIR = "/run/kaal"
+PERSIST_DIR = "/var/lib/kaal/spaces"
+HOOKS_DIR = "/usr/libexec/kaal-spaces/hooks"
+APPLY_SCRIPT = "/usr/libexec/kaal-spaces/apply-space.sh"
+GENERATOR_SCRIPT = "/usr/libexec/kaal-spaces/generate-targets.sh"
+
+CURRENT_SPACE_FILE = os.path.join(STATE_DIR, "current-space")
+LAST_SPACE_FILE = os.path.join(PERSIST_DIR, "last-space")
+DEFAULT_SPACE_FILE = os.path.join(PERSIST_DIR, "default-space")
+LOG_FILE = "/var/log/kaal-spaces.log"
+
+# Built-in spaces that cannot be deleted
+BUILTIN_SPACES = {"gaming", "development", "power", "normal"}
+
+DBUS_NAME = "org.kaal.Spaces"
+DBUS_PATH = "/org/kaal/Spaces"
+
+# Space name validation — lowercase, alphanumeric, hyphens, max 32 chars
+import re
+SPACE_NAME_PATTERN = re.compile(r'^[a-z][a-z0-9-]{1,31}$')
+
+# ============================================================================
+# Logging
+# ============================================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(sys.stderr),
+    ],
+)
+log = logging.getLogger("kaal-spaced")
+
+
+# ============================================================================
+# Space Manager — Dynamic Discovery
+# ============================================================================
+
+class SpaceManager:
+    """Core logic for managing KAAL OS spaces — dynamic discovery."""
+
+    def __init__(self):
+        os.makedirs(STATE_DIR, exist_ok=True)
+        os.makedirs(PERSIST_DIR, exist_ok=True)
+        os.makedirs(SPACES_DIR, exist_ok=True)
+
+    def _discover_spaces(self) -> list:
+        """Dynamically discover all available spaces from config files."""
+        spaces = []
+        for conf_path in sorted(glob.glob(os.path.join(SPACES_DIR, "*.conf"))):
+            # Skip auto-switch.conf
+            basename = os.path.basename(conf_path)
+            if basename == "auto-switch.conf":
+                continue
+
+            space_name = basename.replace(".conf", "")
+            if SPACE_NAME_PATTERN.match(space_name):
+                spaces.append(space_name)
+        return spaces
+
+    def _is_builtin(self, space_name: str) -> bool:
+        return space_name in BUILTIN_SPACES
+
+    def _validate_space_name(self, name: str) -> tuple:
+        """Validate a space name. Returns (is_valid, error_message)."""
+        if not name:
+            return False, "Space name cannot be empty"
+        if not SPACE_NAME_PATTERN.match(name):
+            return False, (
+                "Invalid space name. Use lowercase letters, digits, and hyphens only. "
+                "Must start with a letter and be 2-32 characters."
+            )
+        existing = self._discover_spaces()
+        if name in existing:
+            return False, f"Space '{name}' already exists"
+        return True, ""
+
+    def get_current_space(self) -> str:
+        try:
+            with open(CURRENT_SPACE_FILE, "r") as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            return "unknown"
+
+    def _set_current_space(self, space_name: str):
+        with open(CURRENT_SPACE_FILE, "w") as f:
+            f.write(space_name)
+
+    def get_default_space(self) -> str:
+        user_default = os.path.expanduser("~/.config/kaal/spaces/default")
+        if os.path.exists(user_default):
+            with open(user_default, "r") as f:
+                space = f.read().strip()
+                if space in self._discover_spaces():
+                    return space
+        try:
+            with open(DEFAULT_SPACE_FILE, "r") as f:
+                space = f.read().strip()
+                if space in self._discover_spaces():
+                    return space
+        except FileNotFoundError:
+            pass
+        return "normal"
+
+    def set_default_space(self, space_name: str) -> str:
+        available = self._discover_spaces()
+        if space_name not in available:
+            return f"Error: Space '{space_name}' does not exist"
+        os.makedirs(os.path.dirname(DEFAULT_SPACE_FILE), exist_ok=True)
+        with open(DEFAULT_SPACE_FILE, "w") as f:
+            f.write(space_name)
+        log.info(f"Default space set to: {space_name}")
+        return f"Default space set to {space_name}"
+
+    def get_last_space(self) -> str:
+        try:
+            with open(LAST_SPACE_FILE, "r") as f:
+                space = f.read().strip()
+                if space in self._discover_spaces():
+                    return space
+        except FileNotFoundError:
+            pass
+        return self.get_default_space()
+
+    def _save_last_space(self, space_name: str):
+        with open(LAST_SPACE_FILE, "w") as f:
+            f.write(space_name)
+
+    def list_spaces(self) -> list:
+        spaces = []
+        for space_name in self._discover_spaces():
+            info = self.get_space_info(space_name)
+            if info:
+                spaces.append(info)
+        return spaces
+
+    def get_space_info(self, space_name: str) -> dict:
+        conf_path = os.path.join(SPACES_DIR, f"{space_name}.conf")
+        if not os.path.exists(conf_path):
+            return None
+
+        config = configparser.ConfigParser()
+        config.read(conf_path)
+
+        # Check if this space extends another
+        extends = config.get("space", "extends", fallback="")
+
+        info = {
+            "name": space_name,
+            "display_name": config.get("space", "name", fallback=space_name.title()),
+            "description": config.get("space", "description", fallback=""),
+            "color": config.get("space", "color", fallback="#888888"),
+            "icon": config.get("space", "icon", fallback=""),
+            "cpu_governor": config.get("system", "cpu_governor", fallback="unknown"),
+            "audio_quantum": config.get("system", "audio_quantum", fallback="256"),
+            "active": (space_name == self.get_current_space()),
+            "builtin": self._is_builtin(space_name),
+            "extends": extends,
+            "custom": not self._is_builtin(space_name),
+        }
+        return info
+
+    def get_space_config_path(self, space_name: str) -> str:
+        return os.path.join(SPACES_DIR, f"{space_name}.conf")
+
+    def _list_templates(self) -> list:
+        """List available space templates."""
+        templates = []
+        if not os.path.isdir(TEMPLATES_DIR):
+            return templates
+        for path in sorted(glob.glob(os.path.join(TEMPLATES_DIR, "*.conf"))):
+            name = os.path.basename(path).replace(".conf", "")
+            config = configparser.ConfigParser()
+            config.read(path)
+            templates.append({
+                "name": name,
+                "display_name": config.get("space", "name", fallback=name.title()),
+                "description": config.get("space", "description", fallback=""),
+            })
+        return templates
+
+    def create_space(self, space_name: str, template_name: str = "blank") -> str:
+        """Create a new custom space from a template."""
+        valid, err = self._validate_space_name(space_name)
+        if not valid:
+            return f"Error: {err}"
+
+        # Find template
+        template_path = os.path.join(TEMPLATES_DIR, f"{template_name}.conf")
+        if not os.path.exists(template_path):
+            # If template doesn't exist, use blank
+            template_path = os.path.join(TEMPLATES_DIR, "blank.conf")
+            if not os.path.exists(template_path):
+                return f"Error: Template '{template_name}' not found"
+
+        # Copy template to new space config
+        dest_path = self.get_space_config_path(space_name)
+        shutil.copy2(template_path, dest_path)
+
+        # Update the name in the config
+        config = configparser.ConfigParser()
+        config.read(dest_path)
+        config.set("space", "name", space_name.title())
+
+        # Add metadata
+        if not config.has_section("meta"):
+            config.add_section("meta")
+        config.set("meta", "created_by", os.environ.get("USER", "unknown"))
+        config.set("meta", "template", template_name)
+
+        with open(dest_path, "w") as f:
+            config.write(f)
+
+        # Create hook scripts directory for this space
+        hook_scripts = ["pre-enter", "post-enter", "pre-exit", "post-exit"]
+        for hook in hook_scripts:
+            hook_path = os.path.join(HOOKS_DIR, f"{space_name}-{hook.replace('-', '_')}.sh")
+            if not os.path.exists(hook_path):
+                with open(hook_path, "w") as f:
+                    f.write(f"""#!/bin/bash
+# {hook} hook for {space_name} space
+logger -t kaal-spaces "{space_name} space {hook} hook"
+""")
+
+        # Regenerate systemd targets
+        self._regenerate_targets()
+
+        log.info(f"Space created: {space_name} (from template: {template_name})")
+        return f"Created space '{space_name}' from template '{template_name}'"
+
+    def delete_space(self, space_name: str) -> str:
+        """Delete a custom space. Built-in spaces cannot be deleted."""
+        if self._is_builtin(space_name):
+            return f"Error: Cannot delete built-in space '{space_name}'"
+
+        available = self._discover_spaces()
+        if space_name not in available:
+            return f"Error: Space '{space_name}' does not exist"
+
+        if self.get_current_space() == space_name:
+            return f"Error: Cannot delete active space. Switch to another space first."
+
+        # Remove config file
+        conf_path = self.get_space_config_path(space_name)
+        os.remove(conf_path)
+
+        # Remove hook scripts
+        for hook_file in glob.glob(os.path.join(HOOKS_DIR, f"{space_name}-*.sh")):
+            os.remove(hook_file)
+
+        # Remove hook references from the config
+        # (hooks are referenced inside the conf file which we already deleted)
+
+        # Regenerate systemd targets
+        self._regenerate_targets()
+
+        # Clear default if it was this space
+        if self.get_default_space() == space_name:
+            with open(DEFAULT_SPACE_FILE, "w") as f:
+                f.write("normal")
+
+        log.info(f"Space deleted: {space_name}")
+        return f"Deleted space '{space_name}'"
+
+    def clone_space(self, source: str, dest: str) -> str:
+        """Clone an existing space to a new one."""
+        available = self._discover_spaces()
+        if source not in available:
+            return f"Error: Source space '{source}' does not exist"
+
+        valid, err = self._validate_space_name(dest)
+        if not valid:
+            return f"Error: {err}"
+
+        src_path = self.get_space_config_path(source)
+        dest_path = self.get_space_config_path(dest)
+
+        shutil.copy2(src_path, dest_path)
+
+        # Update name
+        config = configparser.ConfigParser()
+        config.read(dest_path)
+        config.set("space", "name", dest.title())
+        if not config.has_section("meta"):
+            config.add_section("meta")
+        config.set("meta", "created_by", os.environ.get("USER", "unknown"))
+        config.set("meta", "cloned_from", source)
+
+        with open(dest_path, "w") as f:
+            config.write(f)
+
+        # Clone hook scripts
+        for hook_file in glob.glob(os.path.join(HOOKS_DIR, f"{source}-*.sh")):
+            basename = os.path.basename(hook_file)
+            new_name = basename.replace(f"{source}-", f"{dest}-", 1)
+            shutil.copy2(hook_file, os.path.join(HOOKS_DIR, new_name))
+
+        # Regenerate systemd targets
+        self._regenerate_targets()
+
+        log.info(f"Space cloned: {source} -> {dest}")
+        return f"Cloned '{source}' to '{dest}'"
+
+    def export_space(self, space_name: str) -> str:
+        """Export a space configuration as JSON."""
+        available = self._discover_spaces()
+        if space_name not in available:
+            return json.dumps({"error": f"Space '{space_name}' does not exist"})
+
+        conf_path = self.get_space_config_path(space_name)
+        config = configparser.ConfigParser()
+        config.read(conf_path)
+
+        export = {"space_name": space_name, "sections": {}}
+        for section in config.sections():
+            export["sections"][section] = dict(config.items(section))
+
+        # Include hook scripts if any
+        hooks = {}
+        for hook_file in glob.glob(os.path.join(HOOKS_DIR, f"{space_name}-*.sh")):
+            basename = os.path.basename(hook_file)
+            with open(hook_file, "r") as f:
+                hooks[basename] = f.read()
+        if hooks:
+            export["hooks"] = hooks
+
+        return json.dumps(export, indent=2)
+
+    def import_space(self, json_config: str) -> str:
+        """Import a space from JSON configuration."""
+        try:
+            data = json.loads(json_config)
+        except json.JSONDecodeError as e:
+            return f"Error: Invalid JSON: {e}"
+
+        space_name = data.get("space_name", "")
+        valid, err = self._validate_space_name(space_name)
+        if not valid:
+            return f"Error: {err}"
+
+        conf_path = self.get_space_config_path(space_name)
+        config = configparser.ConfigParser()
+
+        sections = data.get("sections", {})
+        for section_name, items in sections.items():
+            config.add_section(section_name)
+            for key, value in items.items():
+                config.set(section_name, key, value)
+
+        # Add import metadata
+        if not config.has_section("meta"):
+            config.add_section("meta")
+        config.set("meta", "imported", "true")
+
+        with open(conf_path, "w") as f:
+            config.write(f)
+
+        # Write hook scripts
+        hooks = data.get("hooks", {})
+        for hook_name, content in hooks.items():
+            hook_path = os.path.join(HOOKS_DIR, hook_name)
+            with open(hook_path, "w") as f:
+                f.write(content)
+            os.chmod(hook_path, 0o755)
+
+        # Regenerate systemd targets
+        self._regenerate_targets()
+
+        log.info(f"Space imported: {space_name}")
+        return f"Imported space '{space_name}'"
+
+    def _regenerate_targets(self):
+        """Regenerate systemd targets for all spaces."""
+        if os.path.exists(GENERATOR_SCRIPT):
+            try:
+                subprocess.run(
+                    [GENERATOR_SCRIPT],
+                    capture_output=True, text=True, timeout=10
+                )
+                log.info("Systemd targets regenerated")
+            except Exception as e:
+                log.warning(f"Could not regenerate systemd targets: {e}")
+
+    def run_hook(self, space_name: str, hook_type: str) -> bool:
+        conf_path = os.path.join(SPACES_DIR, f"{space_name}.conf")
+        config = configparser.ConfigParser()
+        config.read(conf_path)
+
+        if not config.has_section("hooks"):
+            return True
+
+        # Map our hook types to config keys
+        hook_key_map = {
+            "pre_enter": "pre_enter",
+            "post_enter": "post_enter",
+            "pre_exit": "pre_exit",
+            "post_exit": "post_exit",
+        }
+        hook_key = hook_key_map.get(hook_type, hook_type)
+        hook_script = config.get("hooks", hook_key, fallback="")
+
+        if not hook_script or not os.path.exists(hook_script):
+            return True
+
+        try:
+            result = subprocess.run([hook_script], capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                log.warning(f"Hook {hook_type} for {space_name} returned {result.returncode}: {result.stderr}")
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            log.error(f"Hook {hook_type} for {space_name} timed out")
+            return False
+        except Exception as e:
+            log.error(f"Hook {hook_type} for {space_name} failed: {e}")
+            return False
+
+    def switch_space(self, space_name: str) -> str:
+        available = self._discover_spaces()
+        if space_name not in available:
+            return f"Error: Space '{space_name}' does not exist. Available: {', '.join(available)}"
+
+        current = self.get_current_space()
+        if current == space_name:
+            return f"Already in {space_name} space"
+
+        log.info(f"Switching from '{current}' to '{space_name}'")
+
+        if current != "unknown":
+            log.info(f"Running pre-exit hook for {current}")
+            self.run_hook(current, "pre_exit")
+
+        # Activate the space's systemd target
+        target_name = f"kaal-space-{space_name}.target"
+        if current != "unknown":
+            subprocess.run(["systemctl", "isolate", target_name], capture_output=True)
+        else:
+            subprocess.run(["systemctl", "start", target_name], capture_output=True)
+
+        # Apply space configuration
+        try:
+            result = subprocess.run(
+                [APPLY_SCRIPT, space_name],
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode != 0:
+                log.error(f"apply-space.sh failed for {space_name}: {result.stderr}")
+                return f"Error applying {space_name} space: {result.stderr}"
+        except subprocess.TimeoutExpired:
+            return "Error: Space switch timed out"
+        except FileNotFoundError:
+            log.warning("apply-space.sh not found, skipping config application")
+
+        # Run hooks
+        log.info(f"Running post-enter hook for {space_name}")
+        self.run_hook(space_name, "post_enter")
+        if current != "unknown":
+            self.run_hook(current, "post_exit")
+
+        self._set_current_space(space_name)
+        self._save_last_space(space_name)
+        self._send_notification(space_name)
+
+        log.info(f"Space switched: {current} -> {space_name}")
+        return f"Switched to {space_name} space"
+
+    def _send_notification(self, space_name: str):
+        info = self.get_space_info(space_name)
+        display_name = info.get("display_name", space_name) if info else space_name
+        description = info.get("description", "") if info else ""
+        try:
+            subprocess.run(
+                ["notify-send", "-i", "kaal-spaces", "-u", "normal",
+                 f"KAAL Space: {display_name}", description[:100]],
+                capture_output=True, timeout=5
+            )
+        except Exception:
+            pass
+
+    def activate_on_boot(self):
+        last_space = self.get_last_space()
+        log.info(f"Boot: activating space '{last_space}'")
+        self.run_hook(last_space, "pre_enter")
+        if os.path.exists(APPLY_SCRIPT):
+            subprocess.run([APPLY_SCRIPT, last_space], capture_output=True, timeout=60)
+        self.run_hook(last_space, "post_enter")
+        self._set_current_space(last_space)
+        log.info(f"Boot: space '{last_space}' activated")
+
+
+# ============================================================================
+# D-Bus Service
+# ============================================================================
+
+class KaalSpacesDBusService(dbus.service.Object):
+    def __init__(self, manager: SpaceManager):
+        self.manager = manager
+        bus_name = dbus.service.BusName(DBUS_NAME, bus=dbus.SystemBus())
+        super().__init__(bus_name, DBUS_PATH)
+        log.info(f"D-Bus service registered: {DBUS_NAME} at {DBUS_PATH}")
+
+    @dbus.service.method(DBUS_NAME, in_signature="s", out_signature="s")
+    def SwitchSpace(self, space_name: str) -> str:
+        old = self.manager.get_current_space()
+        result = self.manager.switch_space(space_name)
+        if result.startswith("Switched to"):
+            self.SpaceChanged(old, space_name)
+        return result
+
+    @dbus.service.method(DBUS_NAME, in_signature="", out_signature="s")
+    def GetCurrentSpace(self) -> str:
+        return self.manager.get_current_space()
+
+    @dbus.service.method(DBUS_NAME, in_signature="", out_signature="aa{sv}")
+    def ListSpaces(self) -> list:
+        spaces = self.manager.list_spaces()
+        result = []
+        for s in spaces:
+            entry = {}
+            for k, v in s.items():
+                if isinstance(v, bool):
+                    entry[k] = dbus.Boolean(v)
+                elif isinstance(v, int):
+                    entry[k] = dbus.Int32(v)
+                else:
+                    entry[k] = dbus.String(str(v))
+            result.append(dbus.Dictionary(entry, signature="sv"))
+        return result
+
+    @dbus.service.method(DBUS_NAME, in_signature="s", out_signature="a{sv}")
+    def GetSpaceInfo(self, space_name: str) -> dict:
+        info = self.manager.get_space_info(space_name)
+        if not info:
+            return {}
+        result = {}
+        for k, v in info.items():
+            if isinstance(v, bool):
+                result[k] = dbus.Boolean(v)
+            elif isinstance(v, int):
+                result[k] = dbus.Int32(v)
+            else:
+                result[k] = dbus.String(str(v))
+        return dbus.Dictionary(result, signature="sv")
+
+    @dbus.service.method(DBUS_NAME, in_signature="s", out_signature="s")
+    def SetDefaultSpace(self, space_name: str) -> str:
+        return self.manager.set_default_space(space_name)
+
+    @dbus.service.method(DBUS_NAME, in_signature="", out_signature="s")
+    def GetDefaultSpace(self) -> str:
+        return self.manager.get_default_space()
+
+    # --- New methods for dynamic space management ---
+
+    @dbus.service.method(DBUS_NAME, in_signature="ss", out_signature="s")
+    def CreateSpace(self, name: str, template: str) -> str:
+        result = self.manager.create_space(name, template)
+        if result.startswith("Created"):
+            self.SpaceCreated(name)
+        return result
+
+    @dbus.service.method(DBUS_NAME, in_signature="s", out_signature="s")
+    def DeleteSpace(self, name: str) -> str:
+        result = self.manager.delete_space(name)
+        if result.startswith("Deleted"):
+            self.SpaceDeleted(name)
+        return result
+
+    @dbus.service.method(DBUS_NAME, in_signature="ss", out_signature="s")
+    def CloneSpace(self, source: str, dest: str) -> str:
+        return self.manager.clone_space(source, dest)
+
+    @dbus.service.method(DBUS_NAME, in_signature="s", out_signature="s")
+    def ExportSpace(self, name: str) -> str:
+        return self.manager.export_space(name)
+
+    @dbus.service.method(DBUS_NAME, in_signature="s", out_signature="s")
+    def ImportSpace(self, json_config: str) -> str:
+        result = self.manager.import_space(json_config)
+        if result.startswith("Imported"):
+            data = json.loads(json_config)
+            self.SpaceCreated(data.get("space_name", ""))
+        return result
+
+    @dbus.service.method(DBUS_NAME, in_signature="", out_signature="aa{sv}")
+    def ListTemplates(self) -> list:
+        templates = self.manager._list_templates()
+        result = []
+        for t in templates:
+            entry = {}
+            for k, v in t.items():
+                entry[k] = dbus.String(str(v))
+            result.append(dbus.Dictionary(entry, signature="sv"))
+        return result
+
+    @dbus.service.signal(DBUS_NAME, signature="ss")
+    def SpaceChanged(self, old_space: str, new_space: str):
+        log.info(f"Signal: SpaceChanged({old_space}, {new_space})")
+
+    @dbus.service.signal(DBUS_NAME, signature="s")
+    def SpaceCreated(self, space_name: str):
+        log.info(f"Signal: SpaceCreated({space_name})")
+
+    @dbus.service.signal(DBUS_NAME, signature="s")
+    def SpaceDeleted(self, space_name: str):
+        log.info(f"Signal: SpaceDeleted({space_name})")
+
+
+# ============================================================================
+# Main
+# ============================================================================
+
+def main():
+    manager = SpaceManager()
+
+    if manager.get_current_space() == "unknown":
+        log.info("First boot — activating last/default space")
+        manager.activate_on_boot()
+
+    def handle_signal(signum, frame):
+        log.info(f"Received signal {signum}, shutting down")
+        sys.exit(0)
+
+    import signal as sig
+    sig.signal(sig.SIGTERM, handle_signal)
+    sig.signal(sig.SIGINT, handle_signal)
+
+    service = KaalSpacesDBusService(manager)
+    log.info("kaal-spaced v2 started (dynamic spaces enabled), entering main loop")
+    loop = GLib.MainLoop()
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        log.info("Shutting down")
+    finally:
+        loop.quit()
+
+
+if __name__ == "__main__":
+    main()

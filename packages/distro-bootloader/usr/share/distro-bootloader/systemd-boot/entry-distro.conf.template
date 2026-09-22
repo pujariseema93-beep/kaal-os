@@ -1,0 +1,58 @@
+# =============================================================================
+# /usr/share/distro-bootloader/systemd-boot/entry-distro.conf.template
+# =============================================================================
+# This is a TEMPLATE for a systemd-boot boot entry. On a real installation,
+# this is placed at /boot/efi/loader/entries/kaal.conf with the
+# placeholders filled in by the installer.
+#
+# systemd-boot entry format is simpler than GRUB — each entry is a single
+# .conf file in /boot/efi/loader/entries/.
+# =============================================================================
+
+# ---- Entry title (shown in the boot menu) ----
+title   KAAL OS
+
+# ---- Kernel version ----
+# This is set by the kernel-install hook on each kernel update.
+# Example: 6.11.5-300.fc42.x86_64
+version __KERNEL_VERSION__
+
+# ---- Machine ID ----
+# Links this entry to the machine's identity (auto-generated)
+machine-id __MACHINE_ID__
+
+# ---- Linux kernel path (relative to ESP) ----
+linux   /__DISTRO_DIR__/vmlinuz
+
+# ---- Initramfs path (relative to ESP) ----
+initrd  /__DISTRO_DIR__/initramfs.img
+
+# ---- Kernel command line ----
+# This is the same set of parameters as GRUB_CMDLINE_LINUX, but flattened
+# into a single line. The installer populates this from the GPU detection
+# results and the /etc/default/grub.d/ configs.
+#
+# Base params:
+#   loglevel=3 systemd.show_status=0 vt.global_cursor_default=0
+#
+# Gaming params:
+#   split_lock_detect=off preempt=full transparent_hugepage=madvise
+#
+# Security:
+#   mitigations=off
+#
+# GPU params (auto-detected, one of):
+#   NVIDIA: nvidia-drm.modeset=1 nvidia_drm.fbdev=1 modprobe.blacklist=nouveau ...
+#   AMD:    amdgpu.ppfeaturemask=0xffffffff rd.driver.pre=amdgpu ...
+#   Intel:  i915.enable_guc=3 i915.fastboot=1 rd.driver.pre=i915 ...
+#
+# Root filesystem:
+#   root=UUID=... ro rootflags=subvol=root
+#
+# Resume (hibernate):
+#   resume=UUID=... resume_offset=...
+#
+options root=UUID=__ROOT_UUID__ ro rootflags=subvol=root __KERNEL_PARAMS__
+
+# ---- Optional: devicetree (for ARM64 systems, not used on x86_64) ----
+# devicetree /__DISTRO_DIR__/dtb

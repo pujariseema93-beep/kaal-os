@@ -1,0 +1,70 @@
+# =============================================================================
+# gaming.list — Gaming Profile Package List
+# =============================================================================
+# Packages installed when the user selects the "Gaming" profile during
+# installation. The Calamares installer reads this file and installs
+# the listed packages via DNF.
+#
+# Format: one package name per line, comments start with #
+# =============================================================================
+
+# ---- Game Launchers ----
+# NOTE: itch and gamehub removed — not in Fedora/RPM Fusion repos.
+# Install via Flathub instead:
+#   flatpak install flathub io.itch.itch
+
+steam
+protonup-qt
+lutris
+heroic-games-launcher
+bottles
+
+# ---- Compatibility & Runtime ----
+wine
+wine-mono
+wine-gecko
+winetricks
+protontricks
+dxvk
+vkd3d
+vkd3d-proton
+
+# ---- Performance & Overlay ----
+gamemode
+mangohud
+gamescope
+vkbasalt
+corectrl
+
+# ---- NVIDIA Specific ----
+nvidia-settings
+nvidia-persistenced
+
+# ---- Streaming & Capture ----
+obs-studio
+gpu-screen-recorder
+
+# ---- Emulators ----
+retroarch
+dolphin-emu
+rpcs3
+ppsspp
+pcsx2
+ryujinx
+melonDS
+
+# ---- Game Development ----
+godot
+blender
+krita
+aseprite
+
+# ---- Audio (gaming-focused) ----
+pipewire
+pipewire-alsa
+pipewire-pulseaudio
+wireplumber
+easyeffects
+
+# ---- Native Linux Games ----
+luanti

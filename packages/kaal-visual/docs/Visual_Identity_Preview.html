@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAAL OS — Visual Identity Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d0d0d; color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 40px; line-height: 1.6;
+  }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 18px; margin: 32px 0 16px; color: #4A90D9; border-bottom: 1px solid #333; padding-bottom: 8px; }
+  h3 { font-size: 14px; margin: 20px 0 10px; color: #888; }
+  .subtitle { color: #666; font-size: 13px; margin-bottom: 32px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  /* Color palette */
+  .palette { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .color-card {
+    width: 100px; text-align: center; border-radius: 10px;
+    overflow: hidden; border: 1px solid #333;
+  }
+  .color-swatch { height: 60px; }
+  .color-info { padding: 8px 4px; font-size: 10px; background: #1a1a1a; }
+  .color-info .name { color: #e0e0e0; font-weight: bold; display: block; }
+  .color-info .hex { color: #888; }
+
+  /* Component previews */
+  .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .preview-box {
+    background: #1a1a1a; border-radius: 12px; padding: 24px;
+    border: 1px solid #333;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-block; padding: 10px 24px; border-radius: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer; margin-right: 8px;
+    border: 1px solid #555; background: #2a2a2a; color: #fff;
+  }
+  .btn-primary { background: #4A90D9; border-color: #4A90D9; }
+  .btn-danger { background: #c0392b; border-color: #c0392b; }
+  .btn:hover { opacity: 0.85; }
+
+  /* Inputs */
+  .input {
+    background: #0d0d0d; border: 1px solid #444; border-radius: 6px;
+    padding: 8px 12px; color: #fff; font-size: 13px; width: 100%; margin-bottom: 8px;
+  }
+  .input:focus { border-color: #4A90D9; outline: none; }
+
+  /* Progress bar */
+  .progress { background: #1a1a1a; border-radius: 4px; height: 24px; margin-top: 8px; }
+  .progress-fill { background: #4A90D9; border-radius: 4px; height: 100%; width: 67%; }
+
+  /* Space cards */
+  .spaces { display: flex; gap: 12px; flex-wrap: wrap; }
+  .space-card {
+    flex: 1; min-width: 140px; padding: 16px; border-radius: 10px;
+    border: 2px solid; text-align: center;
+  }
+  .space-card .icon { font-size: 28px; margin-bottom: 8px; }
+  .space-card .name { font-size: 13px; font-weight: bold; }
+  .gaming { border-color: #FF6B35; background: rgba(255,107,53,0.08); color: #FF6B35; }
+  .dev { border-color: #4A90D9; background: rgba(74,144,217,0.08); color: #4A90D9; }
+  .power { border-color: #9B59B6; background: rgba(155,89,182,0.08); color: #9B59B6; }
+  .normal { border-color: #2ECC71; background: rgba(46,204,113,0.08); color: #2ECC71; }
+
+  /* GRUB preview */
+  .grub-preview {
+    background: #0a0a0a; border-radius: 8px; padding: 32px;
+    border: 1px solid #333; text-align: center; min-height: 200px;
+  }
+  .grub-menu { display: inline-block; text-align: left; margin-top: 16px; }
+  .grub-item { padding: 4px 8px; color: #888; font-size: 13px; }
+  .grub-item.selected { color: #fff; font-weight: bold; border-left: 3px solid #4A90D9; padding-left: 5px; }
+
+  /* Login preview */
+  .login-preview {
+    background: #0a0a0a; border-radius: 8px; padding: 32px;
+    border: 1px solid #333; text-align: center; min-height: 200px;
+  }
+  .login-panel {
+    display: inline-block; background: #1a1a1a; border-radius: 12px;
+    padding: 24px; border: 1px solid #333;
+  }
+
+  /* Checklist */
+  .checklist { list-style: none; }
+  .checklist li {
+    padding: 6px 0; font-size: 13px; color: #888;
+    border-bottom: 1px solid #222;
+  }
+  .checklist li::before { content: "☐ "; color: #555; }
+  .checklist li.essential::before { content: "★ "; color: #FF6B35; }
+
+  .footer { text-align: center; color: #333; font-size: 12px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>KAAL OS Visual Identity</h1>
+<p class="subtitle">11 theme components — all built with placeholder assets, ready for your final artwork</p>
+
+<!-- Color Palette -->
+<h2>Color Palette</h2>
+<div class="palette">
+  <div class="color-card"><div class="color-swatch" style="background:#0d0d0d"></div><div class="color-info"><span class="name">Background</span><span class="hex">#0d0d0d</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#1a1a1a"></div><div class="color-info"><span class="name">BG Alt</span><span class="hex">#1a1a1a</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#e0e0e0"></div><div class="color-info"><span class="name">Foreground</span><span class="hex">#e0e0e0</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#888888"></div><div class="color-info"><span class="name">FG Dim</span><span class="hex">#888888</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#4A90D9"></div><div class="color-info"><span class="name">Accent</span><span class="hex">#4A90D9</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#FF6B35"></div><div class="color-info"><span class="name">Gaming</span><span class="hex">#FF6B35</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#9B59B6"></div><div class="color-info"><span class="name">Power</span><span class="hex">#9B59B6</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#2ECC71"></div><div class="color-info"><span class="name">Normal</span><span class="hex">#2ECC71</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#c0392b"></div><div class="color-info"><span class="name">Danger</span><span class="hex">#c0392b</span></div></div>
+  <div class="color-card"><div class="color-swatch" style="background:#333333"></div><div class="color-info"><span class="name">Border</span><span class="hex">#333333</span></div></div>
+</div>
+
+<!-- UI Components -->
+<h2>GTK / Qt UI Components</h2>
+<div class="preview-grid">
+  <div class="preview-box">
+    <h3>Buttons</h3>
+    <span class="btn">Default</span>
+    <span class="btn btn-primary">Primary</span>
+    <span class="btn btn-danger">Destructive</span>
+  </div>
+  <div class="preview-box">
+    <h3>Text Input</h3>
+    <input class="input" placeholder="Username">
+    <input class="input" placeholder="Password" type="password">
+  </div>
+  <div class="preview-box">
+    <h3>Progress Bar</h3>
+    <div class="progress"><div class="progress-fill"></div></div>
+  </div>
+  <div class="preview-box">
+    <h3>Checkboxes & Radio</h3>
+    <div style="font-size:13px;color:#888;">
+      <div>☑ Enable auto-update</div>
+      <div>☐ Enable telemetry</div>
+      <div>◉ Gaming &nbsp; ○ Development</div>
+    </div>
+  </div>
+</div>
+
+<!-- GRUB Theme -->
+<h2>GRUB Boot Menu</h2>
+<div class="grub-preview">
+  <div style="font-size:24px;font-weight:bold;color:#1a1a1a;letter-spacing:6px;">KAAL OS</div>
+  <div class="grub-menu">
+    <div class="grub-item selected">▸ KAAL OS (default)</div>
+    <div class="grub-item">KAAL OS (recovery)</div>
+    <div class="grub-item">Fedora (fallback)</div>
+    <div class="grub-item">UEFI Settings</div>
+  </div>
+  <div style="margin-top:24px;color:#444;font-size:11px;">
+    Press 'e' to edit · 'c' for console · Enter to boot
+  </div>
+</div>
+
+<!-- Login Screens -->
+<h2>Login Screens</h2>
+<div class="preview-grid">
+  <div class="preview-box">
+    <h3>SDDM (KDE Plasma)</h3>
+    <div class="login-preview">
+      <div style="font-size:20px;font-weight:bold;color:#fff;letter-spacing:4px;margin-bottom:20px;">KAAL OS</div>
+      <div class="login-panel">
+        <div style="width:48px;height:48px;background:#4A90D9;border-radius:24px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>
+        <input class="input" placeholder="Username" style="width:240px;">
+        <input class="input" placeholder="Password" type="password" style="width:240px;">
+        <button class="btn btn-primary" style="width:240px;margin-top:4px;">Login</button>
+      </div>
+    </div>
+  </div>
+  <div class="preview-box">
+    <h3>GDM (GNOME)</h3>
+    <div class="login-preview">
+      <div style="font-size:20px;font-weight:bold;color:#fff;letter-spacing:4px;margin-bottom:20px;">KAAL OS</div>
+      <div class="login-panel">
+        <div style="width:48px;height:48px;background:#4A90D9;border-radius:24px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>
+        <input class="input" placeholder="Password" type="password" style="width:240px;">
+        <button class="btn btn-primary" style="width:240px;margin-top:4px;">Sign In</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Kaal Spaces -->
+<h2>Kaal Spaces</h2>
+<div class="spaces">
+  <div class="space-card gaming"><div class="icon">🎮</div><div class="name">Gaming</div></div>
+  <div class="space-card dev"><div class="icon">💻</div><div class="name">Development</div></div>
+  <div class="space-card power"><div class="icon">⚡</div><div class="name">Power User</div></div>
+  <div class="space-card normal"><div class="icon">🏠</div><div class="name">Normal</div></div>
+</div>
+
+<!-- Wallpapers -->
+<h2>Wallpapers (Placeholder → Your Art)</h2>
+<div class="spaces">
+  <div class="space-card" style="border-color:#333;background:#1a1a2e;min-height:80px;display:flex;align-items:center;justify-content:center;color:#333;font-size:11px;">Default</div>
+  <div class="space-card gaming" style="min-height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;">Gaming</div>
+  <div class="space-card dev" style="min-height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;">Development</div>
+  <div class="space-card power" style="min-height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;">Power</div>
+  <div class="space-card normal" style="min-height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;">Normal</div>
+</div>
+
+<!-- Plymouth -->
+<h2>Plymouth Boot Splash</h2>
+<div class="grub-preview">
+  <div style="font-size:48px;margin-bottom:8px;">⬡</div>
+  <div style="font-size:18px;font-weight:bold;color:#e0e0e0;letter-spacing:4px;">KAAL OS</div>
+  <div style="margin-top:24px;">
+    <div style="display:inline-block;width:300px;height:4px;background:#1a1a1a;border-radius:2px;">
+      <div style="width:67%;height:100%;background:#4A90D9;border-radius:2px;"></div>
+    </div>
+  </div>
+  <div style="margin-top:8px;color:#444;font-size:11px;">Boot in progress...</div>
+</div>
+
+<!-- Asset Checklist -->
+<h2>Assets You Need to Provide</h2>
+<div class="preview-grid">
+  <div class="preview-box">
+    <h3>Essential (must have)</h3>
+    <ul class="checklist">
+      <li class="essential">GRUB background — 1920×1080 PNG</li>
+      <li class="essential">Plymouth logo — 256×256 PNG with alpha</li>
+      <li class="essential">Calamares logo — 100×100 PNG with alpha</li>
+      <li class="essential">Calamares wallpaper — 1920×1080 PNG/JPG</li>
+      <li class="essential">SDDM background — 1920×1080 PNG/JPG</li>
+      <li class="essential">GDM background — 1920×1080 PNG/JPG</li>
+      <li class="essential">Default wallpaper — 1920×1080 PNG/JPG</li>
+    </ul>
+  </div>
+  <div class="preview-box">
+    <h3>Recommended (should have)</h3>
+    <ul class="checklist">
+      <li>App icon (kaal-spaces) — 128×128 SVG</li>
+      <li>Start menu icon (start-here-kaal) — 128×128 SVG</li>
+      <li>Space wallpapers (4) — 1920×1080 PNG/JPG</li>
+      <li>Plymouth spinner (8 frames) — 24×24 PNG with alpha</li>
+    </ul>
+    <h3 style="margin-top:16px;">Optional</h3>
+    <ul class="checklist">
+      <li>Full icon set (14 icons)</li>
+      <li>Cursor theme (XCursor format)</li>
+      <li>Sound scheme (9 OGG files)</li>
+      <li>GRUB PNG frame assets</li>
+    </ul>
+  </div>
+</div>
+
+<div class="footer">
+  KAAL OS Visual Identity — 11 components, 30+ files, all placeholder assets ready to be replaced<br>
+  Install with: sudo bash scripts/install-visual-identity.sh<br>
+  Specifications: docs/VISUAL_IDENTITY.md
+</div>
+
+</div>
+</body>
+</html>

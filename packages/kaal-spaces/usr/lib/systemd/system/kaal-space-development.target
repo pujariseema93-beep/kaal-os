@@ -1,0 +1,14 @@
+[Unit]
+Description=KAAL OS Development Space Target
+Description=Development Space — dev tools, containers, balanced power
+AllowIsolate=yes
+
+# Only one space target can be active at a time
+Conflicts=kaal-space-gaming.target kaal-space-power.target kaal-space-normal.target
+
+# Pull in the space setup service
+Wants=kaal-space-development-setup.service
+After=kaal-spaced.service
+
+[Install]
+WantedBy=multi-user.target

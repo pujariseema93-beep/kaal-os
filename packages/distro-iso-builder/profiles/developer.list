@@ -1,0 +1,105 @@
+# =============================================================================
+# developer.list — Developer Profile Package List
+# =============================================================================
+
+# ---- Languages & Runtimes ----
+python3
+python3-pip
+python3-virtualenv
+python3-devel
+nodejs
+npm
+rust
+cargo
+go
+golang
+java-21-openjdk
+java-21-openjdk-devel
+gcc
+gcc-c++
+clang
+clang-devel
+cmake
+make
+ninja-build
+ruby
+ruby-devel
+php
+php-cli
+elixir
+erlang
+
+# ---- IDEs & Editors ----
+code
+neovim
+vim
+emacs
+helix
+jetbrains-toolbox
+zed
+
+# ---- Containers & Virtualization ----
+podman
+podman-compose
+docker
+docker-compose
+distrobox
+toolbx
+buildah
+skimage
+skopeo
+kvm
+qemu
+qemu-kvm
+libvirt
+virt-install
+virt-manager
+gnome-boxes
+
+# ---- Terminal & Shell ----
+kitty
+alacritty
+wezterm
+tmux
+zellij
+starship
+zsh
+fish
+htop
+btop
+lazygit
+lazydocker
+
+# ---- CLI Tools ----
+fzf
+ripgrep
+fd-find
+bat
+eza
+delta
+gh
+glab
+jq
+yq
+httpie
+shellcheck
+pre-commit
+act
+python3-rich
+python3-textual
+
+# ---- Databases ----
+postgresql
+postgresql-server
+redis
+valkey
+sqlite
+sqlite-devel
+dbeaver
+
+# ---- Version Control ----
+git
+git-core
+git-email
+subversion
+mercurial

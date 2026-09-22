@@ -1,0 +1,13 @@
+[Unit]
+Description=KAAL OS Spaces Auto-Switch Daemon
+After=kaal-spaced.service graphical-session.target
+Wants=kaal-spaced.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/kaal-spaces/kaal-space-auto
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

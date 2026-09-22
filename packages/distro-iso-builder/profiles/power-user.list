@@ -1,0 +1,80 @@
+# =============================================================================
+# power-user.list — Power User Profile Package List
+# =============================================================================
+
+# ---- Tiling WMs ----
+hyprland
+sway
+waybar
+swaylock
+swayidle
+wofi
+rofi-wayland
+foot
+kitty
+alacritty
+wl-clipboard
+polkit-gnome
+dunst
+swaynotification-center
+
+# ---- System Tools ----
+htop
+btop
+iotop
+powertop
+htop
+ncdu
+dust
+procs
+bottom
+glances
+inxi
+neofetch
+fastfetch
+flatpak
+bauh
+gnome-software
+
+# ---- Customization ----
+kvantum
+oomox
+themix
+pywal
+sddm
+sddm-kcm
+waybar
+
+# ---- Network Tools ----
+NetworkManager
+NetworkManager-wifi
+NetworkManager-bluetooth
+wireshark
+nmap
+tcpdump
+mtr
+iperf3
+dnsutils
+bind-utils
+openvpn
+wireguard-tools
+tailscale
+
+# ---- File Management ----
+ranger
+yazi
+nnn
+fzf
+ripgrep
+fd-find
+bat
+eza
+trash-cli
+
+# ---- Shell ----
+zsh
+fish
+starship
+tmux
+zellij
+atuin

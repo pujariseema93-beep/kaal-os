@@ -1,0 +1,59 @@
+# =============================================================================
+# daily.list — Daily Life Profile Package List
+# =============================================================================
+
+# ---- Web & Communication ----
+firefox
+thunderbird
+discord
+telegram-desktop
+signal-desktop
+webapp-manager
+
+# ---- Office & Productivity ----
+libreoffice
+libreoffice-langpack-en
+onlyoffice
+obsidian
+logseq
+pdfarranger
+evince
+okular
+
+# ---- Media & Entertainment ----
+mpv
+vlc
+celluloid
+spotify-client
+easyeffects
+kdenlive
+audacity
+
+# ---- Creative & Design ----
+gimp
+gimp-plugins
+inkscape
+blender
+krita
+darktable
+rawtherapee
+flameshot
+
+# ---- System & Utilities ----
+timeshift
+gnome-software
+discover
+flatpak
+flameshot
+keepassxc
+deja-dup
+syncthing
+rclone
+filezilla
+gnome-boxes
+
+# ---- Cloud & Sync ----
+rclone
+syncthing
+nextcloud-client
+dropbox

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+
+<policyconfig>
+
+  <vendor>KAAL OS</vendor>
+  <vendor_url>https://kaalos.org</vendor_url>
+
+  <action id="org.kaal.spaces.switch">
+    <description>Switch KAAL Space</description>
+    <description xml:lang="hi">काल स्पेस स्विच करें</description>
+    <message>Authentication is required to switch between KAAL Spaces</message>
+    <message xml:lang="hi">काल स्पेस के बीच स्विच करने के लिए प्रमाणीकरण आवश्यक है</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/kaal-space</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">switch</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv2">%{space_name}</annotate>
+  </action>
+
+  <action id="org.kaal.spaces.set-default">
+    <description>Set Default KAAL Space</description>
+    <description xml:lang="hi">डिफ़ॉल्ट काल स्पेस सेट करें</description>
+    <message>Authentication is required to set the default KAAL Space</message>
+    <message xml:lang="hi">डिफ़ॉल्ट काल स्पेस सेट करने के लिए प्रमाणीकरण आवश्यक है</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/kaal-space</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">default</annotate>
+  </action>
+
+</policyconfig>

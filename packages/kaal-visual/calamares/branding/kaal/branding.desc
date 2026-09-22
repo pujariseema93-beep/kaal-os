@@ -1,0 +1,70 @@
+# KAAL OS Calamares Branding Configuration
+# This controls the visual appearance of the KAAL OS installer.
+# Replace placeholder assets with final artwork.
+
+---
+# Branding component name (must match directory name)
+componentName: kaal
+
+# Window size for the installer
+windowExpanding: true
+windowSize: 1024x600
+
+# --- Images ---
+# All paths relative to this branding directory.
+# Recommended sizes in parentheses.
+
+# Product logo (shown in sidebar header) — 100x100 PNG with alpha
+productLogo: "logo.png"
+
+# Product icon (shown in sidebar) — 80x80 PNG with alpha
+productIcon: "icon.png"
+
+# Product wallpaper (installer background) — 1920x1080 PNG/JPG
+productWallpaper: "wallpaper.png"
+
+# Product welcome image (first slide) — 600x400 PNG
+productWelcome: "welcome.png"
+
+# --- Slideshow ---
+# Slides shown during installation. Can be QML or static images.
+slideshow: "slides.qml"
+slideshowAPI: 2
+
+# --- Strings ---
+# Custom strings shown in the installer UI
+productName: "KAAL OS"
+productShort: "KAAL"
+version: "1.0"
+shortVersion: "1.0"
+subtitle: "Kaal Autonomous Artificial Intelligence Operating System"
+
+# --- Colors ---
+# Colors used throughout the installer interface
+colorSidebarBackground: "#0d0d0d"
+colorSidebarText: "#e0e0e0"
+colorSidebarTextCurrent: "#4A90D9"
+colorSidebarTextHover: "#ffffff"
+colorSidebarBorder: "#222222"
+
+colorMainBackground: "#0d0d0d"
+colorMainText: "#e0e0e0"
+colorMainTextActive: "#ffffff"
+colorMainTextHover: "#4A90D9"
+colorMainBorder: "#333333"
+
+# Accent color for buttons, progress bar, selections
+colorAccent: "#4A90D9"
+colorAccentHover: "#5AA0E9"
+colorAccentPressed: "#3A80C9"
+
+# --- Navigation ---
+# Show/hide navigation elements
+showInstallRequirements: true
+showDonateUrl: false
+showKnownIssuesUrl: false
+showReleaseNotesUrl: false
+
+# --- Style ---
+# QSS (Qt Style Sheet) for custom styling
+style: calamares.qss

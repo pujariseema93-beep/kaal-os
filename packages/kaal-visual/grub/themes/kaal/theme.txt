@@ -1,0 +1,90 @@
+# KAAL OS GRUB2 Theme Configuration
+# This file controls the visual appearance of the GRUB boot menu.
+# Replace placeholder assets in this directory with final artwork.
+
+# --- General ---
+title-text: ""  # branding baked into background.png
+title-font: "DejaVu Sans Bold 24"
+title-color: "#e0e0e0"
+title-align: center
+message-font: "DejaVu Sans 14"
+message-color: "#888888"
+message-bg-color: "#0d0d0d"
+terminal-box: "terminal_box_*.png"
+terminal-font: "DejaVu Sans Mono 14"
+
+# --- Boot menu ---
+desktop-image: "background.png"
+desktop-color: "#0d0d0d"
+
++ boot_menu {
+    left = 25%
+    top = 30%
+    width = 50%
+    height = 40%
+    
+    item_font = "DejaVu Sans 16"
+    item_color = "#888888"
+    selected_item_font = "DejaVu Sans Bold 16"
+    selected_item_color = "#ffffff"
+    selected_item_pixmap_style = "selected_item_*.png"
+    
+    icon_height = 32
+    icon_width = 32
+    item_height = 36
+    item_padding = 8
+    item_icon_space = 12
+    item_spacing = 4
+    
+    scrollbar = true
+    scrollbar_width = 8
+    scrollbar_thumb = "scrollbar_thumb_*.png"
+    scrollbar_frame = "scrollbar_frame_*.png"
+    
+    menu_pixmap_style = "menu_*.png"
+}
+
+# --- Progress bar ---
++ progress_bar {
+    id = "__timeout__"
+    left = 25%
+    top = 80%
+    width = 50%
+    height = 6
+    
+    text = "@TIMEOUT_NOTIFICATION_SHORT@"
+    font = "DejaVu Sans 12"
+    text_color = "#666666"
+    text_align = center
+    
+    bar_style = "progress_bar_*.png"
+    highlight_style = "progress_highlight_*.png"
+    
+    show_text = false
+}
+
+# --- Info text (bottom) ---
++ hbox {
+    left = 0%
+    top = 92%
+    width = 100%
+    height = 8%
+    
+    + label {
+        text = "KAAL OS — Kaal Autonomous Artificial Intelligence Operating System"
+        font = "DejaVu Sans 10"
+        color = "#444444"
+        align = center
+    }
+}
+
+# --- Help hint ---
++ label {
+    left = 0%
+    top = 86%
+    width = 100%
+    text = "Press 'e' to edit, 'c' for console, Enter to boot"
+    font = "DejaVu Sans 10"
+    color = "#444444"
+    align = center
+}

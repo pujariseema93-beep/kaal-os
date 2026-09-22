@@ -36,6 +36,12 @@ rootpw --lock
 # ---- Live image user ----
 # The live user is created by the live image tools, but we define it here
 user --name=liveuser --password="" --groups=wheel --gecos="KAAL OS Live User"
+network --bootproto=dhcp --activate
+
+# ---- Disk layout (lmc --no-virt installs into a sparse disk image) ----
+bootloader --timeout=1
+clearpart --all --initlabel
+part / --size 15360 --fstype ext4
 
 # ---- SELinux ----
 # Fedora parity: enforcing everywhere — live AND installed. All custom files

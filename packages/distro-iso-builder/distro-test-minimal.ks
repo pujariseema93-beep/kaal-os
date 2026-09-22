@@ -22,6 +22,12 @@ rootpw --lock
 selinux --permissive
 firewall --enabled --ssh
 services --enabled=NetworkManager
+network --bootproto=dhcp --activate
+
+# ---- Disk layout (lmc --no-virt installs into a sparse disk image) ----
+bootloader --timeout=1
+clearpart --all --initlabel
+part / --size 6144 --fstype ext4
 
 # ---- Repositories ----
 url --url="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/"

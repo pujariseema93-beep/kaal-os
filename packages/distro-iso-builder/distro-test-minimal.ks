@@ -43,6 +43,7 @@ grub2-efi-x64
 grub2-tools
 shim-x64
 dracut
+dracut-live
 NetworkManager
 NetworkManager-wifi
 pipewire

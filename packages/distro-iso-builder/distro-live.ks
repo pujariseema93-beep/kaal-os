@@ -121,6 +121,7 @@ efibootmgr
 mokutil
 systemd-boot           # Alternative bootloader
 dracut
+dracut-live
 dracut-tools
 
 # ---- Display Server & Audio ----

@@ -5,9 +5,9 @@
 # to verify your build pipeline works before trying the full distro.
 #
 # Build:
-#   sudo livemedia-creator --ks distro-test-minimal.ks --no-virt \
-#     --image-only --tmp /var/tmp/test-build \
-#     --resultdir ./test-results --releasever 42 \
+#   sudo livemedia-creator --ks distro-test-minimal.ks --no-virt \\
+#     --image-only --tmp /var/tmp/test-build \\
+#     --resultdir ./test-results --releasever 42 \\
 #     --title "Test Build" --make-iso --compress xz
 #
 # This builds in ~15 minutes (vs ~45 for the full distro) and produces
@@ -24,6 +24,7 @@ firewall --enabled --ssh
 services --enabled=NetworkManager
 
 # ---- Repositories ----
+url --url="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/"
 repo --name=fedora --baseurl=https://download.fedoraproject.org/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/ --cost=1
 repo --name=updates --baseurl=https://download.fedoraproject.org/pub/fedora/linux/updates/$releasever/Everything/$basearch/ --cost=1
 

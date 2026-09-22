@@ -5,9 +5,9 @@
 # It is consumed by livemedia-creator (lorax) to build a bootable ISO.
 #
 # Build command:
-#   sudo livemedia-creator --ks distro-live.ks \\
-#     --no-virt --image-only --tmp /var/tmp/distro-build \\
-#     --resultdir /var/tmp/distro-results --iso-label KAAL OS \\
+#   sudo livemedia-creator --ks distro-live.ks \
+#     --no-virt --image-only --tmp /var/tmp/distro-build \
+#     --resultdir /var/tmp/distro-results --iso-label KAAL OS \
 #     --releasever 42 --title "KAAL OS Live" --macboot
 #
 # The kickstart has three phases:
@@ -596,9 +596,9 @@ if [ "$TOTAL" -gt 0 ]; then
     if command -v notify-send >/dev/null 2>&1; then
         export DISPLAY=:0
         export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u liveuser 2>/dev/null || echo 1000)/bus"
-        notify-send -u normal -a "KAAL OS Update Checker" \\
-            "$TOTAL updates available" \\
-            "DNF: $DNF_UPDATES | Flatpak: $FLATPAK_UPDATES | Firmware: $FW_UPDATES\nClick to install or run: sudo dnf5 upgrade" \\
+        notify-send -u normal -a "KAAL OS Update Checker" \
+            "$TOTAL updates available" \
+            "DNF: $DNF_UPDATES | Flatpak: $FLATPAK_UPDATES | Firmware: $FW_UPDATES\nClick to install or run: sudo dnf5 upgrade" \
             2>/dev/null || true
     fi
     log "Notification sent for $TOTAL updates"
@@ -690,7 +690,7 @@ done
 # 3. Regenerate GRUB config
 echo "Regenerating GRUB config..." | tee -a "$LOG"
 if [ -d /sys/firmware/efi ]; then
-    grub2-mkconfig -o /boot/efi/EFI/distro/grub.cfg 2>/dev/null || \\
+    grub2-mkconfig -o /boot/efi/EFI/distro/grub.cfg 2>/dev/null || \
     grub2-mkconfig -o /boot/grub2/grub.cfg 2>/dev/null || true
 else
     grub2-mkconfig -o /boot/grub2/grub.cfg 2>/dev/null || true
@@ -890,7 +890,7 @@ mkdir -p /var/log/distro
 
 # ---- KAAL visual identity: apply to live image (carried to install) ----
 if [ -d /usr/share/kaal-visual ]; then
-    bash /usr/share/kaal-visual/scripts/install-visual-identity.sh 2>/dev/null || \\
+    bash /usr/share/kaal-visual/scripts/install-visual-identity.sh 2>/dev/null || \
         echo "[kaal] visual identity install skipped (non-fatal)"
 fi
 
@@ -929,35 +929,35 @@ if [ -d "$STAGE" ]; then
     # ---- distro-iso-builder: profile lists + post-install scripts 01-07 ----
     if [ -d "$STAGE/distro-iso-builder/profiles" ]; then
         mkdir -p "$LIVE_ROOT/usr/share/distro/profiles"
-        cp "$STAGE"/distro-iso-builder/profiles/*.list \\
+        cp "$STAGE"/distro-iso-builder/profiles/*.list \
             "$LIVE_ROOT/usr/share/distro/profiles/" 2>/dev/null || true
     fi
     if [ -d "$STAGE/distro-iso-builder/scripts" ]; then
         mkdir -p "$LIVE_ROOT/usr/libexec/distro-installer"
-        cp "$STAGE"/distro-iso-builder/scripts/*.sh \\
+        cp "$STAGE"/distro-iso-builder/scripts/*.sh \
             "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
     fi
 
     # ---- distro-hardware: post-install scripts 08-16 ----
     if [ -d "$STAGE/distro-hardware/scripts" ]; then
         mkdir -p "$LIVE_ROOT/usr/libexec/distro-installer"
-        cp "$STAGE"/distro-hardware/scripts/*.sh \\
+        cp "$STAGE"/distro-hardware/scripts/*.sh \
             "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
     fi
 
     # ---- distro-calamares: modules + branding + configs ----
     if [ -d "$STAGE/distro-calamares" ]; then
         mkdir -p "$LIVE_ROOT/etc/calamares" "$LIVE_ROOT/usr/lib/calamares"
-        cp -r "$STAGE"/distro-calamares/modules/* \\
+        cp -r "$STAGE"/distro-calamares/modules/* \
             "$LIVE_ROOT/usr/lib/calamares/modules/" 2>/dev/null || true
-        cp -r "$STAGE"/distro-calamares/branding/* \\
+        cp -r "$STAGE"/distro-calamares/branding/* \
             "$LIVE_ROOT/usr/lib/calamares/branding/" 2>/dev/null || true
-        cp "$STAGE"/distro-calamares/settings.conf \\
+        cp "$STAGE"/distro-calamares/settings.conf \
             "$LIVE_ROOT/etc/calamares/" 2>/dev/null || true
         mkdir -p "$LIVE_ROOT/etc/calamares/modules"
-        cp "$STAGE"/distro-calamares/modules/*/*.conf \\
+        cp "$STAGE"/distro-calamares/modules/*/*.conf \
             "$LIVE_ROOT/etc/calamares/modules/" 2>/dev/null || true
-        cp "$STAGE"/distro-calamares/modules/distro-post-install.conf \\
+        cp "$STAGE"/distro-calamares/modules/distro-post-install.conf \
             "$LIVE_ROOT/etc/calamares/modules/" 2>/dev/null || true
     fi
 
@@ -965,7 +965,7 @@ if [ -d "$STAGE" ]; then
     if [ -d "$STAGE/kaal-spaces" ]; then
         cp -r "$STAGE"/kaal-spaces/etc/* "$LIVE_ROOT/etc/" 2>/dev/null || true
         cp -r "$STAGE"/kaal-spaces/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
-        cp "$STAGE"/kaal-spaces/scripts/17-spaces-setup.sh \\
+        cp "$STAGE"/kaal-spaces/scripts/17-spaces-setup.sh \
             "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
         chmod +x "$LIVE_ROOT"/usr/libexec/kaal-spaces/* 2>/dev/null || true
         chmod +x "$LIVE_ROOT"/usr/libexec/kaal-spaces/panels/* 2>/dev/null || true
@@ -981,12 +981,12 @@ if [ -d "$STAGE" ]; then
     # ---- kaal-security: config + usr trees + scripts 18-21 ----
     if [ -d "$STAGE/kaal-security" ]; then
         mkdir -p "$LIVE_ROOT/usr/share/kaal-security"
-        cp -r "$STAGE"/kaal-security/config \\
+        cp -r "$STAGE"/kaal-security/config \
             "$LIVE_ROOT/usr/share/kaal-security/" 2>/dev/null || true
         cp -r "$STAGE"/kaal-security/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/usr/bin/kaal-antivirus "$LIVE_ROOT"/usr/bin/kaal-vpn \\
+        chmod +x "$LIVE_ROOT"/usr/bin/kaal-antivirus "$LIVE_ROOT"/usr/bin/kaal-vpn \
             2>/dev/null || true
-        cp "$STAGE"/kaal-security/scripts/*.sh \\
+        cp "$STAGE"/kaal-security/scripts/*.sh \
             "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
     fi
 

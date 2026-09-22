@@ -1,0 +1,82 @@
+# =============================================================================
+# bootstrap.yml — one-shot: unpack the KAAL OS master archive into this repo
+# =============================================================================
+# Downloads KAAL_OS_MASTER_V6.zip from the 'bootstrap' release, unpacks the
+# full 202-file tree (packages/, docs/, BUILD_GUIDE.md, ...) on top of the
+# repository, and installs the CI workflows at .github/workflows/.
+# Safe to re-run: it overlays files and only commits if something changed.
+# =============================================================================
+
+name: Bootstrap repository content
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag holding the master archive'
+        required: true
+        default: 'bootstrap'
+      asset_name:
+        description: 'Asset filename'
+        required: true
+        default: 'KAAL_OS_MASTER_V6.zip'
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    name: Unpack master archive into repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download master archive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag || 'bootstrap' }}
+          ASSET_NAME: ${{ inputs.asset_name || 'KAAL_OS_MASTER_V6.zip' }}
+        run: |
+          set -euxo pipefail
+          gh release download "$RELEASE_TAG" --pattern "$ASSET_NAME" --output master.zip
+          ls -lh master.zip
+
+      - name: Unpack tree and install workflows
+        run: |
+          set -euxo pipefail
+          rm -rf tree && mkdir tree
+          unzip -q master.zip -d tree
+          SRC="tree/distro-master"
+          [ -d "$SRC" ] || SRC="tree"
+          # Overlay the whole master tree (do not touch .git or this workflow)
+          rsync -a --exclude '.git' "$SRC"/ ./
+          # Keep the bootstrapped workflows; add the four CI workflows at root
+          mkdir -p .github/workflows
+          cp -n packages/distro-ci/.github/workflows/*.yml .github/workflows/ 2>/dev/null || true
+          # Executable bits for scripts and CLIs
+          chmod +x packages/*/scripts/*.sh 2>/dev/null || true
+          chmod +x packages/*/usr/bin/* 2>/dev/null || true
+          echo "File count after overlay:"
+          find . -type f -not -path './.git/*' | wc -l
+
+      - name: Commit and push
+        run: |
+          set -euxo pipefail
+          git config user.name "kaal-bootstrap[bot]"
+          git config user.email "actions@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Repository already up to date — nothing to commit."
+          else
+            git commit -m "Bootstrap: full KAAL OS master V6 tree (packages, docs, workflows)"
+            git push
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Bootstrap complete" >> $GITHUB_STEP_SUMMARY
+          echo "The repository now contains the full KAAL OS V6 master tree." >> $GITHUB_STEP_SUMMARY
+          echo "Next: Actions → Build ISO → Run workflow (choose 'both')." >> $GITHUB_STEP_SUMMARY

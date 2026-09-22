@@ -72,12 +72,12 @@ jobs:
             -e RELEASEVER=${{ env.RELEASEVER }}
           run: |
             set -euxo pipefail
-            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum
+            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui
 
             cd /workspace/packages/distro-iso-builder
             ksvalidator distro-test-minimal.ks
 
-            mkdir -p /var/tmp/kaal-results
+            rm -rf /var/tmp/kaal-results
             livemedia-creator \
               --ks distro-test-minimal.ks \
               --no-virt \
@@ -86,11 +86,11 @@ jobs:
               --resultdir /var/tmp/kaal-results \
               --releasever "${RELEASEVER}" \
               --make-iso \
-              2>&1 | tee /var/tmp/kaal-results/build.log
+              2>&1 | tee /var/tmp/kaal-build.log
 
             ls -lh /var/tmp/kaal-results/
             cp /var/tmp/kaal-results/*.iso /workspace/ 2>/dev/null || {
-              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /var/tmp/kaal-results/build.log; exit 1; }
+              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /var/tmp/kaal-build.log; exit 1; }
 
       - name: Upload minimal test ISO
         uses: actions/upload-artifact@v4
@@ -134,7 +134,7 @@ jobs:
             -e STAGE_DIR=${{ env.STAGE_DIR }}
           run: |
             set -euxo pipefail
-            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum
+            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui
 
             cd /workspace/packages/distro-iso-builder
 
@@ -153,7 +153,7 @@ jobs:
 
             ksvalidator distro-live.ks
 
-            mkdir -p /var/tmp/kaal-results
+            rm -rf /var/tmp/kaal-results
             livemedia-creator \
               --ks distro-live.ks \
               --no-virt \
@@ -167,15 +167,15 @@ jobs:
               --volid "KAAL_OS_LIVE" \
               --make-iso \
               --compress xz \
-              2>&1 | tee /var/tmp/kaal-results/build.log
+              2>&1 | tee /var/tmp/kaal-build.log
 
             # Verify the staged packages actually made it into the image
             echo "=== Verifying staged content in built rootfs ==="
             ls /var/tmp/kaal-build/install_root/usr/libexec/distro-installer/ 2>/dev/null | head -30 || true
 
             cp /var/tmp/kaal-results/*.iso /workspace/ 2>/dev/null || {
-              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /var/tmp/kaal-results/build.log; exit 1; }
-            cp /var/tmp/kaal-results/build.log /workspace/ 2>/dev/null || true
+              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /var/tmp/kaal-build.log; exit 1; }
+            cp /var/tmp/kaal-build.log /workspace/build.log 2>/dev/null || true
 
       - name: Checksum and rename
         run: |

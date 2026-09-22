@@ -39,12 +39,12 @@ GRUB text fix are merged in. Nothing else needs applying — build from this tre
 
 ```bash
 # 1. Install build tools
-sudo dnf install -y lorax livemedia-creator pykickstart \
+sudo dnf install -y lorax livemedia-creator pykickstart anaconda-tui \
     qemu-system-x86-core qemu-kvm libvirt
 
 # 2. Unpack this archive
-unzip KAAL_OS_MASTER_V2.zip
-cd KAAL_OS_MASTER_V2/distro-master/packages/distro-iso-builder
+unzip KAAL_OS_MASTER_V6.zip
+cd KAAL_OS_MASTER_V6/distro-master/packages/distro-iso-builder
 ```
 
 ---
@@ -168,10 +168,10 @@ boots cleanly. Full policy: `docs/SECURITY.md`.
 ### Secure Boot — supported
 
 The ISO ships Fedora's signed boot chain (`shim-x64` → `grub2-efi-x64` →
-Fedora kernel) directly from the Fedora repos — we theme GRUB, we never
-replace its binary — so it **boots with UEFI Secure Boot enabled**, with
-kernel lockdown engaging like Fedora Workstation. Verify with the OVMF
-secure-boot QEMU test in `docs/SECURITY.md` (use `OVMF_CODE.secboot.fd`,
+custom files relabeled — see below) directly from the Fedora repos — we theme
+GRUB, we never replace its binary — so it **boots with UEFI Secure Boot
+enabled**, with kernel lockdown engaging like Fedora Workstation. Verify with
+the OVMF secure-boot QEMU test in `docs/SECURITY.md` (use `OVMF_CODE.secboot.fd`,
 `-M q35,smm=on`). Only if the boot chain is ever replaced by a custom
 unsigned GRUB would Secure Boot need to be disabled.
 

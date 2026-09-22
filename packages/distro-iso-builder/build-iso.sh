@@ -8,7 +8,7 @@
 #   - Fedora 40+ host system (or a Fedora container)
 #   - Root privileges (sudo)
 #   - ~20GB free disk space
-#   - livemedia-creator, lorax, lorax-composer packages
+#   - livemedia-creator, lorax, lorax-composer, anaconda-tui packages
 #
 # Usage:
 #   sudo ./build-iso.sh [--releasever 42] [--workdir /var/tmp/build] \
@@ -95,7 +95,7 @@ preflight() {
 
     if [ ${#missing[@]} -gt 0 ]; then
         error "Missing required tools: ${missing[*]}"
-        error "Install them with: dnf install lorax lorax-composer xorriso"
+        error "Install them with: dnf install lorax lorax-composer xorriso anaconda-tui"
         exit 1
     fi
 
@@ -119,7 +119,7 @@ preflight() {
 install_deps() {
     log "Ensuring build dependencies are installed..."
     dnf install -y lorax lorax-composer xorriso isomd5sum \
-        pykickstart livecd-tools 2>/dev/null || true
+        pykickstart livecd-tools anaconda-tui 2>/dev/null || true
 }
 
 # ---- Prepare kickstart ----
@@ -154,7 +154,7 @@ build_iso() {
     log "  Results:  $RESULTDIR"
     log "  Compress: $COMPRESS"
 
-    mkdir -p "$WORKDIR" "$RESULTDIR"
+    mkdir -p "$WORKDIR"
 
     local ks_file="$WORKDIR/distro-live.ks"
 
@@ -191,12 +191,12 @@ done
         --volid "$VOLID" \
         --make-iso \
         --compress "$COMPRESS" \
-        2>&1 | tee "$RESULTDIR/build.log"
+        2>&1 | tee "$WORKDIR/build.log"
 
     local status=$?
 
     if [ $status -ne 0 ]; then
-        error "ISO build failed! Check $RESULTDIR/build.log for details."
+        error "ISO build failed! Check $WORKDIR/build.log for details."
         exit $status
     fi
 

@@ -77,7 +77,8 @@ jobs:
             cd /workspace/packages/distro-iso-builder
             ksvalidator distro-test-minimal.ks
 
-            rm -rf /var/tmp/kaal-results
+            rm -rf /var/tmp/kaal-results /var/tmp/kaal-build
+            mkdir -p /var/tmp/kaal-build
             livemedia-creator \
               --ks distro-test-minimal.ks \
               --no-virt \
@@ -153,7 +154,8 @@ jobs:
 
             ksvalidator distro-live.ks
 
-            rm -rf /var/tmp/kaal-results
+            rm -rf /var/tmp/kaal-results /var/tmp/kaal-build
+            mkdir -p /var/tmp/kaal-build
             livemedia-creator \
               --ks distro-live.ks \
               --no-virt \

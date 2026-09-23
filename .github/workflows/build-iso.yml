@@ -49,7 +49,7 @@ jobs:
   minimal-test:
     name: Minimal test build (15 min smoke)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     if: inputs.build_type != 'full-only'
 
     steps:

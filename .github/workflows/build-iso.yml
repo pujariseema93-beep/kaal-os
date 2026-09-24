@@ -75,7 +75,7 @@ jobs:
             -e RELEASEVER=${{ env.RELEASEVER }}
           run: |
             set -euxo pipefail
-            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui
+            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev
 
             # anaconda needs udev — not present in a plain container.
             # Without it, storage probing hangs forever.
@@ -147,7 +147,7 @@ jobs:
             -e STAGE_DIR=${{ env.STAGE_DIR }}
           run: |
             set -euxo pipefail
-            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui
+            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev
 
             # anaconda needs udev — not present in a plain container.
             /usr/lib/systemd/systemd-udevd --daemon || true

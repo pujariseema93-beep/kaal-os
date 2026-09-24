@@ -17,6 +17,7 @@
 #     the container or storage probing hangs forever.
 #   - keep --tmp/--resultdir on the bind-mounted real filesystem; loop
 #     mounts on the container's overlayfs can wedge.
+#   - the lmc option is --compression, not --compress.
 # =============================================================================
 
 name: Build ISO
@@ -98,7 +99,7 @@ jobs:
               --resultdir /workspace/lmc-results \
               --releasever "${RELEASEVER}" \
               --make-iso \
-              --compress gzip \
+              --compression gzip \
               2>&1 | tee /workspace/build.log
 
             ls -lh /workspace/lmc-results/
@@ -187,7 +188,7 @@ jobs:
               --project "KAAL OS" \
               --volid "KAAL_OS_LIVE" \
               --make-iso \
-              --compress xz \
+              --compression xz \
               2>&1 | tee /workspace/build.log
 
             # Verify the staged packages actually made it into the image

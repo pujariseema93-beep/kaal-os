@@ -6,14 +6,17 @@
 # repo gets 2000 min/month free.
 #
 # Two jobs:
-#   1. minimal-test — the 15-minute smoke build (distro-test-minimal.ks,
-#      no staging needed). Proves repos + kickstart + lmc work.
+#   1. minimal-test — the smoke build (distro-test-minimal.ks, no staging).
+#      Proves repos + kickstart + lmc + anaconda work end to end.
 #   2. full-build   — the real ISO (distro-live.ks) with all 7 packages
 #      staged to /tmp/kaal-staging first, exactly like build-iso.sh does
 #      on a local machine.
 #
-# Repo layout expected (distro-master tree = repo root):
-#   packages/distro-iso-builder/   etc.
+# Notes learned from the first runs:
+#   - anaconda (used by lmc --no-virt) needs udev: start systemd-udevd in
+#     the container or storage probing hangs forever.
+#   - keep --tmp/--resultdir on the bind-mounted real filesystem; loop
+#     mounts on the container's overlayfs can wedge.
 # =============================================================================
 
 name: Build ISO
@@ -44,10 +47,10 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1 — minimal smoke build (~15-20 min)
+  # Job 1 — minimal smoke build
   # ---------------------------------------------------------------------------
   minimal-test:
-    name: Minimal test build (15 min smoke)
+    name: Minimal test build (smoke)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     if: inputs.build_type != 'full-only'
@@ -74,24 +77,33 @@ jobs:
             set -euxo pipefail
             dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui
 
+            # anaconda needs udev — not present in a plain container.
+            # Without it, storage probing hangs forever.
+            /usr/lib/systemd/systemd-udevd --daemon || true
+            udevadm trigger || true
+            timeout 60 udevadm settle || true
+
             cd /workspace/packages/distro-iso-builder
             ksvalidator distro-test-minimal.ks
 
-            rm -rf /var/tmp/kaal-results /var/tmp/kaal-build
-            mkdir -p /var/tmp/kaal-build
+            # Work on the bind-mounted real filesystem (loop mounts on the
+            # container's overlayfs can hang anaconda)
+            rm -rf /workspace/lmc-tmp /workspace/lmc-results
+            mkdir -p /workspace/lmc-tmp
             livemedia-creator \
               --ks distro-test-minimal.ks \
               --no-virt \
               --image-only \
-              --tmp /var/tmp/kaal-build \
-              --resultdir /var/tmp/kaal-results \
+              --tmp /workspace/lmc-tmp \
+              --resultdir /workspace/lmc-results \
               --releasever "${RELEASEVER}" \
               --make-iso \
-              2>&1 | tee /var/tmp/kaal-build.log
+              --compress gzip \
+              2>&1 | tee /workspace/build.log
 
-            ls -lh /var/tmp/kaal-results/
-            cp /var/tmp/kaal-results/*.iso /workspace/ 2>/dev/null || {
-              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /var/tmp/kaal-build.log; exit 1; }
+            ls -lh /workspace/lmc-results/
+            cp /workspace/lmc-results/*.iso /workspace/ 2>/dev/null || {
+              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /workspace/build.log; exit 1; }
 
       - name: Upload minimal test ISO
         uses: actions/upload-artifact@v4
@@ -102,7 +114,7 @@ jobs:
           compression-level: 0
 
   # ---------------------------------------------------------------------------
-  # Job 2 — the real thing (~60-120 min on a 2-core runner)
+  # Job 2 — the real thing (~60-180 min on a 2-core runner)
   # ---------------------------------------------------------------------------
   full-build:
     name: Full KAAL OS ISO
@@ -137,6 +149,11 @@ jobs:
             set -euxo pipefail
             dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui
 
+            # anaconda needs udev — not present in a plain container.
+            /usr/lib/systemd/systemd-udevd --daemon || true
+            udevadm trigger || true
+            timeout 60 udevadm settle || true
+
             cd /workspace/packages/distro-iso-builder
 
             # ---- Stage all 7 packages (same loop as build-iso.sh) ----
@@ -154,14 +171,16 @@ jobs:
 
             ksvalidator distro-live.ks
 
-            rm -rf /var/tmp/kaal-results /var/tmp/kaal-build
-            mkdir -p /var/tmp/kaal-build
+            # Work on the bind-mounted real filesystem (loop mounts on the
+            # container's overlayfs can hang anaconda)
+            rm -rf /workspace/lmc-tmp /workspace/lmc-results
+            mkdir -p /workspace/lmc-tmp
             livemedia-creator \
               --ks distro-live.ks \
               --no-virt \
               --image-only \
-              --tmp /var/tmp/kaal-build \
-              --resultdir /var/tmp/kaal-results \
+              --tmp /workspace/lmc-tmp \
+              --resultdir /workspace/lmc-results \
               --iso-label "KAAL_OS_LIVE" \
               --releasever "${RELEASEVER}" \
               --title "KAAL OS Live" \
@@ -169,15 +188,14 @@ jobs:
               --volid "KAAL_OS_LIVE" \
               --make-iso \
               --compress xz \
-              2>&1 | tee /var/tmp/kaal-build.log
+              2>&1 | tee /workspace/build.log
 
             # Verify the staged packages actually made it into the image
             echo "=== Verifying staged content in built rootfs ==="
-            ls /var/tmp/kaal-build/install_root/usr/libexec/distro-installer/ 2>/dev/null | head -30 || true
+            ls /workspace/lmc-tmp/install_root/usr/libexec/distro-installer/ 2>/dev/null | head -30 || true
 
-            cp /var/tmp/kaal-results/*.iso /workspace/ 2>/dev/null || {
-              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /var/tmp/kaal-build.log; exit 1; }
-            cp /var/tmp/kaal-build.log /workspace/build.log 2>/dev/null || true
+            cp /workspace/lmc-results/*.iso /workspace/ 2>/dev/null || {
+              echo "NO ISO PRODUCED — build.log tail:"; tail -80 /workspace/build.log; exit 1; }
 
       - name: Checksum and rename
         run: |

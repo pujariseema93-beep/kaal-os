@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    =============================================================================
+    config.kiwi — KAAL OS Live ISO for the openSUSE Build Service (OBS)
+    =============================================================================
+    This is the OBS-adapted version of kiwi/distro-live.xml.
+
+    Differences from the local build file:
+      * The main repository is "obsrepositories:/" — OBS injects the
+        repositories configured in your OBS project (see docs/OBS_BUILD_GUIDE.md).
+      * Fedora 42 repositories only (via obsrepositories:/). Bootable
+        KAAL OS Live with KDE, Calamares and the KAAL overlay — milestone 1.
+        RPM Fusion + gaming/NVIDIA content is milestone 2 (see the note in
+        the repositories section below).
+      * "bootkernel=custom" was removed (invalid for a stock kernel).
+      * Image name is filesystem-safe (no spaces); display name keeps branding.
+    =============================================================================
+-->
+<image
+    name="KAAL_OS"
+    displayname="KAAL OS Live"
+    schemaversion="9.0"
+    filesystem="btrfs">
+
+    <!-- ==== Description ==== -->
+    <description type="system">
+        <author>KAAL OS Team</author>
+        <contact>pujariseema93@gmail.com</contact>
+        <specification>Custom Linux distribution for gamers, power users, developers, and daily life.</specification>
+    </description>
+
+    <!-- ==== Preferences ==== -->
+    <preferences>
+        <!-- Live ISO, UEFI boot, hybrid (USB-bootable) -->
+        <type
+            image="iso"
+            firmware="uefi"
+            kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
+            bootpartition="false"
+            hybrid="true"
+            hybridpersistent="true"
+            hybridpersistent_filesystem="ext4"
+            fsmountoptions="compress=zstd:3" />
+
+        <version>0.1.0</version>
+        <packagemanager>dnf5</packagemanager>
+
+        <locale>en_US.UTF-8</locale>
+        <keytable>us</keytable>
+        <timezone>Asia/Kolkata</timezone>
+
+        <!-- RPM exclusions -->
+        <rpm-excludelist>
+            <exclude name="fedora-release"/>
+            <exclude name="fedora-release-identity"/>
+            <exclude name="fedora-logos"/>
+            <exclude name="fedora-backgrounds"/>
+            <exclude name="sendmail"/>
+            <exclude name="postfix"/>
+            <exclude name="nano"/>
+            <exclude name="nano-default-editor"/>
+        </rpm-excludelist>
+    </preferences>
+
+    <!-- ==== Users ==== -->
+    <users>
+        <!-- Live user (no password, autologin) -->
+        <user
+            name="liveuser"
+            password=""
+            home="/home/liveuser"
+            shell="/bin/bash"
+            groups="wheel"
+            realname="KAAL OS Live User" />
+    </users>
+
+    <!-- ==== Repositories ==== -->
+
+    <!-- All repos from the OBS project (Fedora 42 Everything + updates).
+         See docs/OBS_BUILD_GUIDE.md for the project <repository> setup. -->
+    <repository type="rpm-md" alias="kaal-base">
+        <source path="obsrepositories:/"/>
+    </repository>
+
+    <!-- MILESTONE 2 (not enabled yet): add RPM Fusion repositories and the
+         gaming/NVIDIA package list from kiwi/distro-live.xml once the base
+         build is green. kiwi activates every <repository> and <package>
+         listed here, so RPM Fusion content is deliberately omitted for now
+         to keep the first OBS build Fedora-repos-only. -->
+
+    <!-- ==== Packages ==== -->
+    <packages type="image">
+        <!-- Base system -->
+        <package name="@core"/>
+        <package name="@standard"/>
+        <package name="@hardware-support"/>
+        <package name="@base-x"/>
+        <package name="@fonts"/>
+
+        <!-- Desktop: KDE Plasma is the KAAL OS default -->
+        <package name="@kde-desktop"/>
+
+        <!-- Bootloader -->
+        <package name="grub2"/>
+        <package name="grub2-efi-x64"/>
+        <package name="grub2-tools"/>
+        <package name="shim-x64"/>
+        <package name="dracut"/>
+
+        <!-- Audio -->
+        <package name="pipewire"/>
+        <package name="pipewire-alsa"/>
+        <package name="pipewire-pulseaudio"/>
+        <package name="wireplumber"/>
+
+        <!-- Open GPU stack (Fedora repos) -->
+        <package name="mesa-vulkan-drivers"/>
+        <package name="mesa-dri-drivers"/>
+        <package name="vulkan-tools"/>
+
+        <!-- Installer -->
+        <package name="calamares"/>
+        <package name="python3-pyqt5"/>
+
+        <!-- Filesystem -->
+        <package name="btrfs-progs"/>
+        <package name="ntfs-3g"/>
+        <package name="exfatprogs"/>
+        <package name="dosfstools"/>
+
+        <!-- System tools -->
+        <package name="NetworkManager"/>
+        <package name="NetworkManager-wifi"/>
+        <package name="blueman"/>
+        <package name="bluez"/>
+        <package name="fwupd"/>
+        <package name="flatpak"/>
+        <package name="firefox"/>
+        <package name="git"/>
+
+        <!-- Live image tools -->
+        <package name="livecd-tools"/>
+        <package name="xorriso"/>
+        <package name="isomd5sum"/>
+    </packages>
+
+    <!-- ==== Bootstrap packages (installed first) ==== -->
+    <packages type="bootstrap">
+        <package name="filesystem"/>
+        <package name="glibc"/>
+        <package name="dnf5"/>
+        <package name="rpm"/>
+        <package name="basesystem"/>
+        <package name="coreutils"/>
+    </packages>
+
+    <!-- ==== Delete packages ==== -->
+    <packages type="delete">
+        <package name="fedora-release"/>
+        <package name="fedora-release-identity"/>
+        <package name="fedora-logos"/>
+        <package name="sendmail"/>
+        <package name="postfix"/>
+        <package name="nano"/>
+    </packages>
+
+</image>

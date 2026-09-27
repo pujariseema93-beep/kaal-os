@@ -20,7 +20,7 @@
 # ---- Variables ----
 DISTRO_NAME    := KAAL OS
 DISTRO_LOWER   := $(shell echo $(DISTRO_NAME) | tr '[:upper:]' '[:lower:]')
-RELEASEVER     := 42
+RELEASEVER     := 44
 PROFILE        := all
 WORKDIR        := /var/tmp/distro-build
 RESULTDIR      := results
@@ -189,7 +189,7 @@ test: ## Boot-test the ISO in QEMU
 		echo "Run 'make build' first."; \
 		exit 1; \
 	fi; \
-	echo "Testing: $$ISO"; \
+		echo "Testing: $$ISO"; \
 	bash ci/qemu-boot-test.sh "$$ISO"
 
 # ---- Release ----
@@ -233,9 +233,9 @@ docker-build-iso: ## Build the ISO inside Docker
 		bash -c 'sudo dnf install -y lorax xorriso isomd5sum pykickstart && \
 			sed -i "s/\[DISTRO_NAME\]/$(DISTRO_NAME)/g" distro-live.ks && \
 			livemedia-creator --ks distro-live.ks --no-virt --image-only \
-			--tmp /var/tmp/distro-build --resultdir /workspace/results \
-			--iso-label "$(DISTRO_NAME)_LIVE" --releasever $(RELEASEVER) \
-			--title "$(DISTRO_NAME) Live" --make-iso --compress xz'
+		--tmp /var/tmp/distro-build --resultdir /workspace/results \
+		--iso-label "$(DISTRO_NAME)_LIVE" --releasever $(RELEASEVER) \
+		--title "$(DISTRO_NAME) Live" --make-iso --compress xz'
 
 # ---- Clean ----
 .PHONY: clean

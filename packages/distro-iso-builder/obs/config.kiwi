@@ -8,7 +8,7 @@
     Differences from the local build file:
       * The main repository is "obsrepositories:/" — OBS injects the
         repositories configured in your OBS project (see docs/OBS_BUILD_GUIDE.md).
-      * Fedora 42 repositories only (via obsrepositories:/). Bootable
+      * Fedora 44 repositories only (via obsrepositories:/). Bootable
         KAAL OS Live with KDE, Calamares and the KAAL overlay — milestone 1.
         RPM Fusion + gaming/NVIDIA content is milestone 2 (see the note in
         the repositories section below).
@@ -76,7 +76,7 @@
 
     <!-- ==== Repositories ==== -->
 
-    <!-- All repos from the OBS project (Fedora 42 Everything + updates).
+    <!-- All repos from the OBS project (Fedora 44 Everything + updates).
          See docs/OBS_BUILD_GUIDE.md for the project <repository> setup. -->
     <repository type="rpm-md" alias="kaal-base">
         <source path="obsrepositories:/"/>

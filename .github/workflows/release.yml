@@ -79,7 +79,7 @@ jobs:
           ## ${{ env.DISTRO_NAME }} v${VERSION}
 
           **Release Date:** ${DATE}
-          **Base:** Fedora 42
+          **Base:** Fedora 44
           **ISO Size:** ${{ steps.findiso.outputs.iso_size }}
 
           ### Download
@@ -96,7 +96,7 @@ jobs:
 
           ### Features
 
-          - Fedora 42 base, SELinux enforcing, Secure Boot supported
+          - Fedora 44 base, SELinux enforcing, Secure Boot supported
           - 6 desktop environments selectable at install (KDE, GNOME, Hyprland, Sway, XFCE, Cinnamon)
           - 5 software profiles (Gaming, Developer, Power User, Daily, Minimal)
           - Kaal Spaces: 4 built-in runtime profiles + unlimited custom spaces

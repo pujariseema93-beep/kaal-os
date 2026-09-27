@@ -9,7 +9,7 @@
 # Build:   docker run --privileged -v $(pwd):/workspace distro-builder make build
 # =============================================================================
 
-FROM fedora:42
+FROM fedora:44
 
 LABEL maintainer="KAAL OS Team"
 LABEL description="Build environment for KAAL OS ISO"

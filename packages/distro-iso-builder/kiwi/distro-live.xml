@@ -83,22 +83,22 @@
 
     <!-- ==== Repositories ==== -->
     <repository>
-        <source path="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/"/>
+        <source path="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/"/>
     </repository>
     <repository>
-        <source path="https://download.fedoraproject.org/pub/fedora/linux/updates/42/Everything/x86_64/"/>
+        <source path="https://download.fedoraproject.org/pub/fedora/linux/updates/44/Everything/x86_64/"/>
     </repository>
     <repository>
-        <source path="https://download1.rpmfusion.org/free/fedora/releases/42/Everything/x86_64/os/"/>
+        <source path="https://download1.rpmfusion.org/free/fedora/releases/44/Everything/x86_64/os/"/>
     </repository>
     <repository>
-        <source path="https://download1.rpmfusion.org/free/fedora/updates/42/Everything/x86_64/"/>
+        <source path="https://download1.rpmfusion.org/free/fedora/updates/44/Everything/x86_64/"/>
     </repository>
     <repository>
-        <source path="https://download1.rpmfusion.org/nonfree/fedora/releases/42/Everything/x86_64/os/"/>
+        <source path="https://download1.rpmfusion.org/nonfree/fedora/releases/44/Everything/x86_64/os/"/>
     </repository>
     <repository>
-        <source path="https://download1.rpmfusion.org/nonfree/fedora/updates/42/Everything/x86_64/"/>
+        <source path="https://download1.rpmfusion.org/nonfree/fedora/updates/44/Everything/x86_64/"/>
     </repository>
 
     <!-- ==== Packages ==== -->

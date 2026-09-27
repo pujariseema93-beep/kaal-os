@@ -194,7 +194,7 @@ Edit `distro-live.ks` — the `GRUB_CMDLINE_LINUX` line in the `%post` section, 
 ## Troubleshooting
 
 ### Build fails with "No space left on device"
-- Use `--workdir` to point to a a disk with more space
+- Use `--workdir` to point to a disk with more space
 - Use `--compress gzip` for faster (but larger) builds
 
 ### Kickstart validation fails

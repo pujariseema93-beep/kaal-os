@@ -88,7 +88,7 @@ jobs:
   kickstart:
     name: Kickstart
     runs-on: ubuntu-latest
-    container: fedora:42
+    container: fedora:44
     steps:
       - uses: actions/checkout@v4
 

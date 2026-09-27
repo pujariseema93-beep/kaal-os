@@ -11,11 +11,11 @@
 #   - livemedia-creator, lorax, lorax-composer, anaconda-tui packages
 #
 # Usage:
-#   sudo ./build-iso.sh [--releasever 42] [--workdir /var/tmp/build] \
+#   sudo ./build-iso.sh [--releasever 44] [--workdir /var/tmp/build] \
 #     [--resultdir ./results] [--profile all] [--name DISTRO_NAME]
 #
 # Options:
-#   --releasever   Fedora release version (default: 42)
+#   --releasever   Fedora release version (default: 44)
 #   --workdir      Working directory for build (default: /var/tmp/distro-build)
 #   --resultdir    Where to put the final ISO (default: ./results)
 #   --profile      Which profile to build: all, gaming, developer, power-user, daily, minimal
@@ -31,7 +31,7 @@
 set -euo pipefail
 
 # ---- Default configuration ----
-RELEASEVER="42"
+RELEASEVER="44"
 WORKDIR="/var/tmp/distro-build"
 RESULTDIR="./results"
 PROFILE="all"

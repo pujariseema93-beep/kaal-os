@@ -8,7 +8,7 @@
 #   sudo livemedia-creator --ks distro-live.ks \
 #     --no-virt --image-only --tmp /var/tmp/distro-build \
 #     --resultdir /var/tmp/distro-results --iso-label KAAL OS \
-#     --releasever 42 --title "KAAL OS Live" --macboot
+#     --releasever 44 --title "KAAL OS Live" --macboot
 #
 # The kickstart has three phases:
 #   1. %package — defines which RPM packages to install
@@ -65,7 +65,7 @@ services --disabled=
 # =============================================================================
 
 # ---- Fedora Base ----
-url --url="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/"
+url --url="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/"
 repo --name=fedora --baseurl=https://download.fedoraproject.org/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/ --cost=1
 repo --name=updates --baseurl=https://download.fedoraproject.org/pub/fedora/linux/updates/$releasever/Everything/$basearch/ --cost=1
 
@@ -789,7 +789,7 @@ GDMEOF
 cat > /etc/distro-release << 'RELEOF'
 KAAL OS 0.1 (Live)
 Codename: Genesis
-Base: Fedora 42
+Base: Fedora 44
 Build Date: BUILD_DATE_PLACEHOLDER
 RELEOF
 
@@ -818,7 +818,7 @@ cat > /usr/share/distro/info.json << 'INFOEOF'
     "version": "0.1",
     "codename": "Genesis",
     "base": "fedora",
-    "base_version": "42",
+    "base_version": "44",
     "build_date": "BUILD_DATE_PLACEHOLDER",
     "profiles": ["gaming", "developer", "power-user", "daily", "minimal"],
     "desktop_environments": ["kde", "gnome", "hyprland", "sway", "xfce", "cinnamon"],

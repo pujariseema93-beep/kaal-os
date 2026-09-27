@@ -1,7 +1,7 @@
 # =============================================================================
 # build-iso.yml — ISO Build Pipeline (free-tier friendly)
 # =============================================================================
-# Builds KAAL OS ISOs in a Fedora 42 container on GitHub Actions.
+# Builds KAAL OS ISOs in a Fedora 44 container on GitHub Actions.
 # No machine needed: a public repo gets free Actions minutes; a private
 # repo gets 2000 min/month free.
 #
@@ -42,7 +42,7 @@ permissions:
 
 env:
   DISTRO_NAME: 'KAAL OS'
-  RELEASEVER: '42'
+  RELEASEVER: '44'
   PKG_DIR: packages
   STAGE_DIR: /tmp/kaal-staging
 
@@ -66,10 +66,10 @@ jobs:
           sudo apt-get clean
           df -h /
 
-      - name: Build minimal test ISO (Fedora 42 container)
+      - name: Build minimal test ISO (Fedora 44 container)
         uses: addnab/docker-run-action@v3
         with:
-          image: fedora:42
+          image: fedora:44
           options: |
             --privileged
             -v ${{ github.workspace }}:/workspace
@@ -137,10 +137,10 @@ jobs:
           docker rmi $(docker images -q) 2>/dev/null || true
           df -h /
 
-      - name: Stage packages + build full ISO (Fedora 42 container)
+      - name: Stage packages + build full ISO (Fedora 44 container)
         uses: addnab/docker-run-action@v3
         with:
-          image: fedora:42
+          image: fedora:44
           options: |
             --privileged
             -v ${{ github.workspace }}:/workspace

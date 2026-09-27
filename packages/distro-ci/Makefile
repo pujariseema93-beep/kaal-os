@@ -233,9 +233,9 @@ docker-build-iso: ## Build the ISO inside Docker
 		bash -c 'sudo dnf install -y lorax xorriso isomd5sum pykickstart && \
 			sed -i "s/\[DISTRO_NAME\]/$(DISTRO_NAME)/g" distro-live.ks && \
 			livemedia-creator --ks distro-live.ks --no-virt --image-only \
-		--tmp /var/tmp/distro-build --resultdir /workspace/results \
-		--iso-label "$(DISTRO_NAME)_LIVE" --releasever $(RELEASEVER) \
-		--title "$(DISTRO_NAME) Live" --make-iso --compress xz'
+			--tmp /var/tmp/distro-build --resultdir /workspace/results \
+			--iso-label "$(DISTRO_NAME)_LIVE" --releasever $(RELEASEVER) \
+			--title "$(DISTRO_NAME) Live" --make-iso --compress xz'
 
 # ---- Clean ----
 .PHONY: clean

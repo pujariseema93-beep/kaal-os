@@ -32,7 +32,7 @@ GRUB text fix are merged in. Nothing else needs applying — build from this tre
 
 ## Prerequisites (the build machine)
 
-- A real Fedora 42 x86_64 machine (bare metal or VM) with:
+- A real Fedora 44 x86_64 machine (bare metal or VM) with:
   - ~15 GB free disk (builds use /var/tmp and ./results)
   - sudo access
   - internet connection (downloads ~2-4 GB of packages)
@@ -67,7 +67,7 @@ sudo livemedia-creator \
 
 **If it fails:** read `/var/tmp/kaal-build/lmc-logs/` — the anaconda log names
 the exact package or script that failed. Most first-build failures are package
-names that differ in Fedora 42; fix the name in the .ks and re-run.
+names that differ in Fedora 44; fix the name in the .ks and re-run.
 
 ---
 
@@ -131,7 +131,7 @@ Hardware-specific checks:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| "No package X available" in lmc log | Package renamed/not in F42 | Replace with correct name in .ks, re-run |
+| "No package X available" in lmc log | Package renamed/not in F44 | Replace with correct name in .ks, re-run |
 | Build dies in %post | Script bug in chroot | /var/tmp/kaal-build/install-root/root/distro-install.log |
 | ISO boots to GRUB rescue | grub2-efi mismatch | Check `efibootmgr` present; use --make-iso default |
 | Calamares missing modules | Staging missed a package | Verify /tmp/kaal-staging has all 7 dirs during build |

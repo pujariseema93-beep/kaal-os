@@ -1,6 +1,6 @@
 # KAAL OS — Complete Project Master Archive
 
-A custom, fully customizable Linux distribution for gamers, power users, developers, and daily life. Built on Fedora 42.
+A custom, fully customizable Linux distribution for gamers, power users, developers, and daily life. Built on Fedora 44.
 
 ## Archive Contents
 
@@ -80,10 +80,10 @@ Complete ISO creation pipeline:
 ### 6. CI/CD Pipeline (packages/distro-ci/)
 Full automation:
 - `validate.yml` — shellcheck, flake8, ksvalidator, yamllint, placeholder check, structure check
-- `build-iso.yml` — builds ISO in Fedora 42 container, uploads as artifact
+- `build-iso.yml` — builds ISO in Fedora 44 container, uploads as artifact
 - `test-iso.yml` — boots ISO in QEMU, monitors serial for boot stages, checks for panic
 - `release.yml` — tag-triggered GitHub Release with ISO + checksums
-- `Dockerfile` — Fedora 42 build container with all tools
+- `Dockerfile` — Fedora 44 build container with all tools
 - `Makefile` — 15 unified targets (validate, build, test, release, docker, clean)
 - `qemu-boot-test.sh` — standalone QEMU boot test
 - `assemble-all.sh` — collects all packages into single install tree
@@ -97,7 +97,7 @@ Full automation:
 User pushes code to GitHub
   → CI: validate.yml runs (shellcheck, flake8, ksvalidator)
   → CI: build-iso.yml runs
-    → Fedora 42 container starts
+    → Fedora 44 container starts
     → livemedia-creator reads distro-live.ks
     → Kickstart installs packages from all profiles
     → Kickstart %post runs: configures system, creates services

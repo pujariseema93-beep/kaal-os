@@ -16,7 +16,7 @@ to OBS.
 
 | File | Purpose |
 |------|---------|
-| `config.kiwi` | kiwi image description, OBS-adapted: Fedora 42 repos come from your OBS project; includes KDE, Calamares and the KAAL overlay (milestone 1 scope) |
+| `config.kiwi` | kiwi image description, OBS-adapted: Fedora 44 repos come from your OBS project; includes KDE, Calamares and the KAAL overlay (milestone 1 scope) |
 | `config.sh` | Runs inside the image during the build — KAAL os-release, SDDM autologin, dnf config, cleanup (the kiwi equivalent of the kickstart `%post`) |
 | `make-obs-package.sh` | Assembles an osc working directory: the two files above plus a `root/` overlay containing the file trees of all 7 KAAL packages and the Calamares config in `/etc/calamares` |
 
@@ -46,7 +46,7 @@ osc -A https://api.opensuse.org whoami   # will ask for login once
 Web UI is the most reliable path (project names and repo layouts change):
 
 1. Go to **Home Project → Overview → Add from a Distribution**.
-2. Add **Fedora 42** (the standard repo). This gives your project the
+2. Add **Fedora 44** (the standard repo). This gives your project the
    Fedora Everything binary pool.
 3. In the same Repositories screen, tick the **images** repository checkbox
    (bottom of the selection screen) — this is what enables image builds.
@@ -59,8 +59,8 @@ Config) so it contains roughly:
 <project name="home:YOURNAME:kaal">
   <title>KAAL OS</title>
   <repository name="images">
-    <path project="Fedora:42" repository="standard"/>
-    <path project="Virtualization:Appliances:Builder" repository="Fedora_42"/>
+    <path project="Fedora:44" repository="standard"/>
+    <path project="Virtualization:Appliances:Builder" repository="Fedora_44"/>
     <arch>x86_64</arch>
   </repository>
 </project>
@@ -126,7 +126,7 @@ boot test).
 
 ## Milestones
 
-1. **Green base build** (this kit): Fedora 42 + KDE Plasma + Calamares +
+1. **Green base build** (this kit): Fedora 44 + KDE Plasma + Calamares +
    KAAL overlay files, liveuser autologin. The win: a real bootable ISO
    without owning build hardware.
 2. **Full build**: once milestone 1 is green, add the RPM Fusion

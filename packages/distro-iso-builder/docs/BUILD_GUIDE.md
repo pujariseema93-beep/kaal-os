@@ -59,7 +59,7 @@ distro-iso-builder/
 sudo dnf install lorax lorax-composer xorriso pykickstart livecd-tools
 
 # 2. Run the build script
-sudo ./build-iso.sh --releasever 42 --name "KAAL OS"
+sudo ./build-iso.sh --releasever 44 --name "KAAL OS"
 
 # 3. Wait (~30-60 minutes depending on hardware and network speed)
 
@@ -92,7 +92,7 @@ cp results/KAAL OS_20260908_live_x86_64.iso /run/media/user/VENTOY/
 ```bash
 sudo ./build-iso.sh [OPTIONS]
 
-  --releasever   Fedora version (default: 42)
+  --releasever   Fedora version (default: 44)
   --workdir      Build working directory (default: /var/tmp/distro-build)
   --resultdir    Output directory (default: ./results)
   --profile      Package profile: all, gaming, developer, power-user, daily, minimal
@@ -194,7 +194,7 @@ Edit `distro-live.ks` — the `GRUB_CMDLINE_LINUX` line in the `%post` section, 
 ## Troubleshooting
 
 ### Build fails with "No space left on device"
-- Use `--workdir` to point to a disk with more space
+- Use `--workdir` to point to a a disk with more space
 - Use `--compress gzip` for faster (but larger) builds
 
 ### Kickstart validation fails

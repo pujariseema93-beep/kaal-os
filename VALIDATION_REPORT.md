@@ -62,7 +62,7 @@ A tiny kickstart that boots to a GNOME desktop with just Firefox. Use this to ve
 # Build the test ISO (~15 minutes)
 sudo livemedia-creator --ks distro-test-minimal.ks \
   --no-virt --image-only --tmp /var/tmp/test-build \
-  --resultdir ./test-results --releasever 42 \
+  --resultdir ./test-results --releasever 44 \
   --title "Test Build" --make-iso --compress xz
 
 # Test in QEMU
@@ -81,8 +81,8 @@ qemu-system-x86_64 -m 4096 -smp 4 -cdrom test-results/*.iso -boot d
 
 4. **The remaining style issues are non-blocking** — 6 E501 line-too-long warnings in Python config strings won't prevent execution.
 
-5. **Next step:** Set up a Fedora 42 VM, install `lorax` + `xorriso` + `pykickstart`, and run:
+5. **Next step:** Set up a Fedora 44 VM, install `lorax` + `xorriso` + `pykickstart`, and run:
    ```bash
    sudo livemedia-creator --ks distro-test-minimal.ks --no-virt --image-only \
-     --tmp /var/tmp/test --resultdir ./results --releasever 42 --make-iso
+     --tmp /var/tmp/test --resultdir ./results --releasever 44 --make-iso
    ```

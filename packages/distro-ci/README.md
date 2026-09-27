@@ -7,7 +7,7 @@ Complete automation for building, testing, and releasing the distro ISO — GitH
 ```
 Push to main/develop
   → Validate (shellcheck, flake8, ksvalidator, yamllint, placeholder check)
-  → Build ISO (Fedora 42 container, livemedia-creator, ~45 min)
+  → Build ISO (Fedora 44 container, livemedia-creator, ~45 min)
   → Test ISO (QEMU boot, verify desktop/login reached)
   → Upload artifact (14-day retention)
 
@@ -26,7 +26,7 @@ distro-ci/
 │   ├── test-iso.yml              — Boot ISO in QEMU, verify it works
 │   └── release.yml               — Create GitHub Release with ISO
 ├── Dockerfile/
-│   └── Dockerfile                — Fedora 42 build container
+│   └── Dockerfile                — Fedora 44 build container
 ├── ci/
 │   ├── qemu-boot-test.sh         — QEMU boot test script
 │   └── assemble-all.sh           — Assemble all packages into one tree
@@ -95,7 +95,7 @@ Triggers on every push and PR to main/develop.
 
 ### Build ISO Workflow
 Triggers on push to main/develop, tag pushes (v*), and manual dispatch.
-- Runs in Fedora 42 container with `--privileged`
+- Runs in Fedora 44 container with `--privileged`
 - Executes `livemedia-creator` with the kickstart
 - Uploads ISO + checksums + build log as artifact (14-day retention)
 - Generates build summary in GitHub Actions
@@ -141,7 +141,7 @@ Triggers on tag push (v*).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DISTRO_NAME` | `KAAL OS` | Distro name (replace before release) |
-| `RELEASEVER` | `42` | Fedora release version |
+| `RELEASEVER` | `44` | Fedora release version |
 | `PROFILE` | `all` | Software profile |
 | `WORKDIR` | `/var/tmp/distro-build` | Build working directory |
 | `RESULTDIR` | `results` | Output directory for ISO |

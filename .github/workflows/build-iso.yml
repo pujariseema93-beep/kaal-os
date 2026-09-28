@@ -94,7 +94,6 @@ jobs:
             livemedia-creator \
               --ks distro-test-minimal.ks \
               --no-virt \
-              --image-only \
               --tmp /workspace/lmc-tmp \
               --resultdir /workspace/lmc-results \
               --releasever "${RELEASEVER}" \
@@ -179,7 +178,6 @@ jobs:
             livemedia-creator \
               --ks distro-live.ks \
               --no-virt \
-              --image-only \
               --tmp /workspace/lmc-tmp \
               --resultdir /workspace/lmc-results \
               --iso-label "KAAL_OS_LIVE" \

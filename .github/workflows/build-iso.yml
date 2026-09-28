@@ -98,6 +98,7 @@ jobs:
               --resultdir /workspace/lmc-results \
               --releasever "${RELEASEVER}" \
               --make-iso \
+              --iso-only \
               --compression gzip \
               2>&1 | tee /workspace/build.log
 
@@ -186,6 +187,7 @@ jobs:
               --project "KAAL OS" \
               --volid "KAAL_OS_LIVE" \
               --make-iso \
+              --iso-only \
               --compression xz \
               2>&1 | tee /workspace/build.log
 

@@ -6,9 +6,9 @@
 #
 # Build:
 #   sudo livemedia-creator --ks distro-test-minimal.ks --no-virt \
-#     --image-only --tmp /var/tmp/test-build \
+#     --tmp /var/tmp/test-build \
 #     --resultdir ./test-results --releasever 44 \
-#     --title "Test Build" --make-iso --compress xz
+#     --title "Test Build" --make-iso --compression xz
 #
 # This builds in ~15 minutes (vs ~45 for the full distro) and produces
 # a bootable ISO with just GNOME + Firefox. If this boots in QEMU/VirtualBox,
@@ -46,6 +46,7 @@ kernel
 kernel-modules
 grub2
 grub2-efi-x64
+grub2-efi-x64-cdboot
 grub2-tools
 shim-x64
 dracut

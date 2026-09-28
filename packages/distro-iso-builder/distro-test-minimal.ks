@@ -42,7 +42,6 @@ repo --name=updates --baseurl=https://download.fedoraproject.org/pub/fedora/linu
 @base-x
 @fonts
 @gnome-desktop
-@wayland
 kernel
 kernel-modules
 grub2

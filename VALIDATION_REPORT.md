@@ -1,88 +1,70 @@
-# KAAL OS Validation Report
+# KAAL OS — Validation & Status Report
 
-**Date:** 2026-09-09  
-**Validator:** Sarvam AI Agent  
-**Tools:** shellcheck 0.11.0, flake8 7.3.0, pykickstart 3.78 (ksvalidator)
+Last updated: 2026-09-29 · Reflects commit history through the CI green-smoke milestone.
 
-## Summary
+## Executive summary
 
-| Check | Files | PASS | Issues | Status |
-|-------|-------|------|--------|--------|
-| Shellcheck | 21 | 19 | 2 | ✅ Mostly clean |
-| Flake8 (Python) | 4 | 1 | 6 | ⚠️ Style warnings only |
-| KSValidator | 2 | 2 | 0 | ✅ Clean |
-| **Total** | **27** | **22** | **8** | **81% clean** |
+The project's first bootable ISO is real: the **minimal test ISO** builds green in
+GitHub Actions on every push and is downloadable as a workflow artifact. The
+Fedora 42 → 44 rebase is complete. The **full live ISO** (all 7 packages, 6 DEs)
+is passing its early gates (staging, kickstart validation, lmc startup) and is
+in active iteration.
 
-## Issues Found and Fixed
+## What has been verified
 
-### Kickstart (1 issue → fixed)
-1. **`distro-live.ks` line 24** — `install` directive removed in modern pykickstart  
-   **Fix:** Removed the `install` keyword. livemedia-creator handles this implicitly.  
-   **Status:** ✅ Fixed, re-validated, passes clean.
+| Check | Result |
+|-------|--------|
+| Kickstart syntax (`ksvalidator`, both kickstarts) | ✅ Pass (CI + locally) |
+| Fedora 44 repository reachability (Everything + updates, x86_64) | ✅ Pass (install completes in CI) |
+| Full package install into disk image (smoke: 1472 packages) | ✅ Pass |
+| Anaconda post-install + exit in container | ✅ Pass |
+| squashfs runtime creation | ✅ Pass |
+| EFI (el torito + efiboot) ISO assembly | ✅ Pass |
+| ISO artifact upload + download + `file` verification | ✅ Pass ("ISO 9660 ... bootable") |
+| 7-package staging in full build | ✅ Pass |
+| lmc invocation (full build) | ✅ Pass (after flag cleanup) |
 
-### Shell Scripts (7 issues → 5 fixed, 2 remaining)
+## CI state (per workflow)
 
-| Script | Issue | Fix | Status |
-|--------|-------|-----|--------|
-| `live-image-config.sh` | SC2148: Missing shebang | Added `#!/bin/bash` | ✅ Fixed |
-| `build-iso.sh` L205 | SC2155: Declare+assign on same line | Split into two lines | ✅ Fixed |
-| `qemu-boot-test.sh` L73 | SC2034: Unused `UEFI_VARS` variable | Removed orphaned variable | ✅ Fixed |
-| `03-profile-install.sh` L30 | SC2046: Unquoted command substitution | Added double quotes | ✅ Fixed |
-| `03-profile-install.sh` L40 | SC2011: `find \| xargs` pattern | Changed to `find -exec` | ✅ Fixed |
-| `05-auto-update-setup.sh` L13,35 | SC2144: `-f` with glob pattern | Quoted the path | ✅ Fixed |
-| `build-iso.sh` L206 | SC2155: Another local+assign | Partially fixed | ⚠️ Minor |
-| `qemu-boot-test.sh` L65 | SC2034: Renamed variable reference | Renamed | ⚠️ Minor |
+| Workflow | State | Notes |
+|----------|-------|-------|
+| Build ISO | 🟡 smoke job green · full job iterating | Full build ~1–3 h; failures so far were config-level, each fixed in a dedicated commit |
+| Validate | 🔴 11 lint findings | Pre-existing shellcheck/flake8 items in build scripts; do not block Build ISO. Tracked below |
+| Test ISO | ⏸ awaiting green Build ISO | Boots ISO in QEMU, watches serial console for boot stages/panics |
+| Release | ⏸ awaits `v*` tag | Never run by design |
 
-### Python Modules (31 issues → 25 fixed, 6 remaining)
+## Fix history (one change per commit)
 
-| Module | Issues Found | Issues Fixed | Remaining |
-|--------|-------------|-------------|-----------|
-| `profile-select/main.py` | 8 | 8 | 0 |
-| `de-select/main.py` | 12 | 11 | 1 (E501) |
-| `bootloader-select/main.py` | 11 | 5 | 6 (E501, indentation fixed) |
-| `distro-context/main.py` | 0 | 0 | 0 |
+1. `b8d4157`…`1bc4382` — Fedora 42 → 44 rebase (17 files)
+2. `3bda52a` — remove nonexistent `@wayland` group (smoke kickstart)
+3. `78cf3f3` — remove `--image-only` (was skipping ISO creation)
+4. `1981270` — add `grub2-efi-x64-cdboot` (missing EFI files in ISO)
+5. `2e504e5` — add `--iso-only` (result-dir layout)
+6. `d931adbb` — remove self-destructing `docker rmi` in full-build prep
+7. `5ddfd1f` — remove `@wayland` group (full kickstart)
+8. `5320204` — remove nonexistent `--iso-label`/`--title` flags
+9. `a3130ae` — remove `text` display-mode directive (lmc refuses it)
 
-**Fixes applied:**
-- Removed unused imports: `json`, `QPushButton`, `QGridLayout`, `QPixmap`, `QIcon`, `QPropertyRelation`
-- Removed unused variables: `icon_name`, `icon` in ProfileCard
-- Fixed semicolons: `f = QFont(); f.setBold(True)` → split to separate lines
-- Fixed indentation errors introduced by the semicolon fix
-- Broke long config dict entries across multiple lines
-- Added `.flake8` config allowing 140-char lines for Calamares modules (config strings are readable as-is)
+## Open issues
 
-**Remaining 6 issues:** All are E501 (line too long) in Calamares module config strings — these are long dict entries like `"description": "The most customizable full-featured desktop..."` that are readable on one line. Not bugs, style preferences only.
+1. **Validate workflow red** — 11 lint findings (shellcheck/flake8) across build
+   scripts. Cosmetic-to-minor; none block the build.
+2. **No LICENSE file** — a license must be chosen before wide distribution.
+3. **RPM packaging** — the 7 packages are staged into the image via kickstart
+   `%post --nochroot` copy, not built/installed as RPMs.
+4. **`kiwi/distro-live.xml`** — contains an invalid XML comment (a `--description`
+   string inside a comment block); harmless for the lmc path, breaks strict XML
+   consumers.
+5. **Full build untested end-to-end** — first complete run pending.
 
-## New File Added
+## How to verify the smoke ISO yourself
 
-### `distro-test-minimal.ks` — Minimal Test Kickstart
+Download the `kaal-minimal-test-iso` artifact from the latest green Build ISO
+run, then:
 
-A tiny kickstart that boots to a GNOME desktop with just Firefox. Use this to verify your build pipeline works before trying the full distro.
-
-```bash
-# Build the test ISO (~15 minutes)
-sudo livemedia-creator --ks distro-test-minimal.ks \
-  --no-virt --image-only --tmp /var/tmp/test-build \
-  --resultdir ./test-results --releasever 44 \
-  --title "Test Build" --make-iso --compress xz
-
-# Test in QEMU
-qemu-system-x86_64 -m 4096 -smp 4 -cdrom test-results/*.iso -boot d
+```sh
+sha256sum boot.iso        # compare against the run's checksum output
+qemu-system-x86_64 -m 4096 -enable-kvm -cdrom boot.iso
 ```
 
-**If this boots to a GNOME desktop, your pipeline works.** Then move to the full `distro-live.ks`.
-
-## Recommendations
-
-1. **Build the test ISO first** — Use `distro-test-minimal.ks` to verify your Fedora build environment is set up correctly. This takes 15 minutes instead of 45.
-
-2. **The kickstart is the critical file** — It passes validation. This is the file that determines whether the ISO builds at all.
-
-3. **The Python modules will need runtime testing** — flake8 catches syntax and style, but the Calamares Python API (globalstorage, configuration, ui.widget) can only be tested with a real Calamares instance. Expect to debug these during first install.
-
-4. **The remaining style issues are non-blocking** — 6 E501 line-too-long warnings in Python config strings won't prevent execution.
-
-5. **Next step:** Set up a Fedora 44 VM, install `lorax` + `xorriso` + `pykickstart`, and run:
-   ```bash
-   sudo livemedia-creator --ks distro-test-minimal.ks --no-virt --image-only \
-     --tmp /var/tmp/test --resultdir ./results --releasever 44 --make-iso
-   ```
+Expected: GRUB menu → kernel boots → GNOME desktop, autologin as `liveuser`.

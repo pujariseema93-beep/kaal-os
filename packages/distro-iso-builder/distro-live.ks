@@ -132,7 +132,6 @@ dracut-live
 dracut-tools
 
 # ---- Display Server & Audio ----
-@wayland
 xorg-x11-server-Xorg
 xorg-x11-drv-libinput
 pipewire

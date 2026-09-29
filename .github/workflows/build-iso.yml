@@ -180,9 +180,7 @@ jobs:
               --no-virt \
               --tmp /workspace/lmc-tmp \
               --resultdir /workspace/lmc-results \
-              --iso-label "KAAL_OS_LIVE" \
               --releasever "${RELEASEVER}" \
-              --title "KAAL OS Live" \
               --project "KAAL OS" \
               --volid "KAAL_OS_LIVE" \
               --make-iso \

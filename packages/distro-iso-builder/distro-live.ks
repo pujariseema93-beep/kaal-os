@@ -21,7 +21,6 @@
 
 # ---- Live image definition ----
 # livemedia-creator handles disk setup; we just define content
-text
 
 # ---- Language and Keyboard ----
 lang en_US.UTF-8

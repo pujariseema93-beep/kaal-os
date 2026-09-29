@@ -66,15 +66,17 @@ services --disabled=
 # ---- Fedora Base ----
 url --url="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/"
 repo --name=fedora --baseurl=https://download.fedoraproject.org/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/ --cost=1
-repo --name=updates --baseurl=https://download.fedoraproject.org/pub/fedora/linux/updates/$releasever/Everything/$basearch/ --cost=1
+# NOTE: build pins to RELEASE repos only (no *-updates): RPM Fusion's updates
+# tree currently skews ahead of Fedora's updates (Qt6.11/pipewire/vlc/libheif
+# version mismatches), which breaks dependency resolution. Release-only is
+# frozen and reproducible; the installed system still gets updates via the
+# rpmfusion-*-release repo packages configured below.
 
 # ---- RPM Fusion Free (open-source software with patent issues) ----
 repo --name=rpmfusion-free --baseurl=https://download1.rpmfusion.org/free/fedora/releases/$releasever/Everything/$basearch/os/ --cost=2
-repo --name=rpmfusion-free-updates --baseurl=https://download1.rpmfusion.org/free/fedora/updates/$releasever/$basearch/ --cost=2
 
 # ---- RPM Fusion Nonfree (NVIDIA driver, proprietary codecs) ----
 repo --name=rpmfusion-nonfree --baseurl=https://download1.rpmfusion.org/nonfree/fedora/releases/$releasever/Everything/$basearch/os/ --cost=3
-repo --name=rpmfusion-nonfree-updates --baseurl=https://download1.rpmfusion.org/nonfree/fedora/updates/$releasever/$basearch/ --cost=3
 
 # ---- Flathub (Flatpak repository) ----
 # Configured post-install via flatpak remote-add
@@ -145,9 +147,8 @@ pipewire-utils
 @gnome-desktop
 @xfce-desktop
 @cinnamon-desktop
-# Hyprland and Sway installed via explicit packages below
+# Sway installed via explicit packages below (hyprland: REMOVED — not packaged in Fedora 44)
 
-hyprland              # Wayland tiling compositor
 sway                  # i3-compatible Wayland compositor
 waybar                # Status bar for Wayland
 swaylock              # Screen locker for Sway
@@ -163,7 +164,6 @@ lightdm                # XFCE/Cinnamon login manager
 
 # ---- Gaming Stack ----
 steam
-protonup-qt
 lutris
 # REMOVED (dep audit): heroic-games-launcher
 bottles
@@ -173,24 +173,16 @@ gamescope
 vkbasalt
 corectrl
 obs-studio
-gpu-screen-recorder
 retroarch
 dolphin-emu
-rpcs3
-ppsspp
 pcsx2
-ryujinx
 # ---- Native Linux games (pre-installed) ----
 luanti
 godot
 wine
 wine-mono
-wine-gecko
 winetricks
 protontricks
-dxvk
-vkd3d
-vkd3d-proton
 mesa-vulkan-drivers
 vulkan-tools
 vulkan-loader
@@ -199,16 +191,12 @@ vulkan-validation-layers
 # ---- NVIDIA Driver Stack ----
 nvidia-settings
 nvidia-persistenced
-cuda-toolkit          # CUDA for compute
-libva-vdpau-driver    # VAAPI/VDPAU bridge
 vdpauinfo
 
 # ---- AMD GPU Tools ----
 libdrm
 mesa-dri-drivers
 mesa-va-drivers
-mesa-vdpau-drivers
-vulkan-radeon
 clinfo
 rocminfo              # ROCm for GPU compute (optional)
 
@@ -223,8 +211,8 @@ npm
 rust
 cargo
 go
-java-21-openjdk
-java-21-openjdk-devel
+java-25-openjdk
+java-25-openjdk-devel
 gcc
 gcc-c++
 clang
@@ -246,22 +234,18 @@ podman-compose
 docker
 docker-compose
 distrobox
-toolbx
+toolbox
 buildah
 skopeo
 tmux
-zellij
 htop
 btop
-lazygit
-lazydocker
 fzf
 ripgrep
 fd-find
 bat
 eza
 delta
-starship
 zsh
 fish
 python3-rich
@@ -290,7 +274,6 @@ firefox
 thunderbird
 libreoffice
 # REMOVED (dep audit): onlyoffice
-spotify-client
 # REMOVED (dep audit): discord
 telegram-desktop
 # REMOVED (dep audit): signal-desktop
@@ -309,9 +292,8 @@ keepassxc
 gnome-boxes
 virt-manager
 timeshift
-bauh
 gnome-software
-discover
+plasma-discover        # KDE software center (Fedora name)
 flatpak
 appstream
 gnome-tweaks
@@ -325,8 +307,6 @@ gstreamer1-plugins-bad-free
 gstreamer1-plugins-ugly-free
 gstreamer1-vaapi
 gstreamer1-libav
-pipewire-ffmpeg
-codecs               # Meta-package for all codecs
 
 # ---- System Tools ----
 NetworkManager
@@ -358,8 +338,6 @@ restorecond
 man-pages
 man-db
 bash-completion
-zsh-completions
-fish-completions
 ntfs-3g-system-compression
 fuse-libs
 fuse-exfat
@@ -374,7 +352,6 @@ gvfs-afc
 livecd-tools
 anaconda              # Fedora installer (fallback if Calamares not used)
 calamares             # Primary installer
-calamares-config       # Calamares configuration
 # REMOVED (dep audit): python3-pyqt5
 
 # ---- Bootloader Package (our custom package) ----
@@ -397,7 +374,6 @@ isomd5sum
 -fedora-release
 -fedora-release-identity
 -fedora-release-common
--fedora-release-workstation
 -fedora-logos
 -fedora-backgrounds
 -centos-logos
@@ -408,7 +384,10 @@ isomd5sum
 python3-qt5               # correct Fedora name (was python3-pyqt5)
 python3-dbus               # kaal-spaced daemon
 python3-gobject            # kaal-spaced + kaal-space-auto (gi/GLib)
-python3-qt6                # space switcher + editor GUIs
+python3-pyqt6             # space switcher + editor GUIs (Fedora name: python3-pyqt6)
+rpmfusion-free-release   # repo definitions for the installed system
+rpmfusion-nonfree-release
+
 dbus-tools                 # kaal-space CLI (dbus-send)
 plymouth-plugin-script     # KAAL Plymouth theme (script engine)
 iw                         # WiFi scanning
@@ -416,7 +395,6 @@ usbutils                   # lsusb
 pciutils                   # lspci / GPU detection
 iproute-tc                 # tc (gaming network QoS)
 wlr-randr                  # Wayland display config
-xorg-x11-server-utils      # xrandr
 upower                     # power state
 brightnessctl              # backlight
 light                      # backlight fallback

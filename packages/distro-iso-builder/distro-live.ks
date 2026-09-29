@@ -70,11 +70,11 @@ repo --name=updates --baseurl=https://download.fedoraproject.org/pub/fedora/linu
 
 # ---- RPM Fusion Free (open-source software with patent issues) ----
 repo --name=rpmfusion-free --baseurl=https://download1.rpmfusion.org/free/fedora/releases/$releasever/Everything/$basearch/os/ --cost=2
-repo --name=rpmfusion-free-updates --baseurl=https://download1.rpmfusion.org/free/fedora/updates/$releasever/Everything/$basearch/ --cost=2
+repo --name=rpmfusion-free-updates --baseurl=https://download1.rpmfusion.org/free/fedora/updates/$releasever/$basearch/ --cost=2
 
 # ---- RPM Fusion Nonfree (NVIDIA driver, proprietary codecs) ----
 repo --name=rpmfusion-nonfree --baseurl=https://download1.rpmfusion.org/nonfree/fedora/releases/$releasever/Everything/$basearch/os/ --cost=3
-repo --name=rpmfusion-nonfree-updates --baseurl=https://download1.rpmfusion.org/nonfree/fedora/updates/$releasever/Everything/$basearch/ --cost=3
+repo --name=rpmfusion-nonfree-updates --baseurl=https://download1.rpmfusion.org/nonfree/fedora/updates/$releasever/$basearch/ --cost=3
 
 # ---- Flathub (Flatpak repository) ----
 # Configured post-install via flatpak remote-add

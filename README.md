@@ -18,7 +18,7 @@ One live USB. Six desktop environments (KDE, GNOME, Hyprland, Sway, XFCE, Cinnam
 | Full live ISO (all 7 packages, 6 DEs) | 🔨 First real build in progress |
 | Validate workflow | ⚠️ 11 pre-existing lint findings (non-blocking) |
 | RPM packaging | 🚧 Packages are staged via kickstart, not built as RPMs yet |
-| License | ❌ Not chosen yet — see [Get involved](#get-involved) |
+| License | ✅ GPLv3 |
 
 The minimal test ISO proves the whole chain end to end: repositories → kickstart → anaconda install → squashfs → EFI/BIOS bootable ISO — all in GitHub Actions, no build machine needed.
 

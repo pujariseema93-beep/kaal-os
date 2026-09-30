@@ -175,6 +175,7 @@ jobs:
             # container's overlayfs can hang anaconda)
             rm -rf /workspace/lmc-tmp /workspace/lmc-results
             mkdir -p /workspace/lmc-tmp
+            set +e
             livemedia-creator \
               --ks distro-live.ks \
               --no-virt \
@@ -188,6 +189,7 @@ jobs:
               --compression xz \
               2>&1 | tee /workspace/build.log
             LMC_RC=${PIPESTATUS[0]}
+            set -e
 
             if [ "${LMC_RC}" != "0" ]; then
               echo "=== livemedia-creator exited ${LMC_RC} — dumping anaconda logs ==="

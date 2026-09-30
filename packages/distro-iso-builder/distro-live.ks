@@ -40,7 +40,7 @@ network --bootproto=dhcp --activate
 # ---- Disk layout (lmc --no-virt installs into a sparse disk image) ----
 bootloader --timeout=1
 clearpart --all --initlabel
-part / --size 15360 --fstype ext4
+part / --size 40960 --fstype ext4
 
 # ---- SELinux ----
 # Fedora parity: enforcing everywhere — live AND installed. All custom files

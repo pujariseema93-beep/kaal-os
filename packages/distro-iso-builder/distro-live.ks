@@ -371,13 +371,6 @@ isomd5sum
 -postfix
 -nano
 -nano-default-editor
--fedora-release
--fedora-release-identity
--fedora-release-common
--fedora-logos
--fedora-backgrounds
--centos-logos
--redhat-logos
 
 
 # ---- KAAL OS dependency-audit fixes (build-critical) ----

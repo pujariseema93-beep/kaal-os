@@ -187,6 +187,17 @@ jobs:
               --iso-only \
               --compression xz \
               2>&1 | tee /workspace/build.log
+            LMC_RC=${PIPESTATUS[0]}
+
+            if [ "${LMC_RC}" != "0" ]; then
+              echo "=== livemedia-creator exited ${LMC_RC} — dumping anaconda logs ==="
+              ls -la /var/log/anaconda/ 2>/dev/null || echo "(no /var/log/anaconda directory)"
+              for f in /var/log/anaconda/packaging.log /var/log/anaconda/dnf.rpm.log \
+                       /var/log/anaconda/program.log /var/log/anaconda/anaconda.log; do
+                if [ -f "$f" ]; then echo "----- $f (tail 100) -----"; tail -100 "$f"; fi
+              done
+              exit 1
+            fi
 
             # Verify the staged packages actually made it into the image
             echo "=== Verifying staged content in built rootfs ==="

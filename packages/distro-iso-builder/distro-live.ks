@@ -108,7 +108,7 @@ kernel
 kernel-modules
 kernel-modules-extra
 akmod-nvidia          # NVIDIA driver (built for current kernel)
-akmod-nvidia-open     # NVIDIA open kernel modules (Turing+)
+# REMOVED (dep audit): akmod-nvidia-open — conflicts with akmod-nvidia; keep one
 
 # ---- Filesystem Support ----
 btrfs-progs

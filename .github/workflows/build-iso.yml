@@ -193,11 +193,15 @@ jobs:
 
             if [ "${LMC_RC}" != "0" ]; then
               echo "=== livemedia-creator exited ${LMC_RC} — dumping anaconda logs ==="
-              ls -la /var/log/anaconda/ 2>/dev/null || echo "(no /var/log/anaconda directory)"
-              for f in /var/log/anaconda/packaging.log /var/log/anaconda/dnf.rpm.log \
-                       /var/log/anaconda/program.log /var/log/anaconda/anaconda.log; do
-                if [ -f "$f" ]; then echo "----- $f (tail 100) -----"; tail -100 "$f"; fi
+              echo "--- anaconda log locations ---"
+              find /workspace/lmc-tmp /tmp -name 'packaging.log' -o -name 'dnf.rpm.log' 2>/dev/null | head -10
+              for f in $(find /workspace/lmc-tmp /tmp -name 'packaging.log' 2>/dev/null | head -2) \
+                       $(find /workspace/lmc-tmp /tmp -name 'dnf.rpm.log' 2>/dev/null | head -2); do
+                echo "----- $f (tail 150) -----"
+                tail -150 "$f"
               done
+              echo "----- build.log tail 60 -----"
+              tail -60 /workspace/build.log
               exit 1
             fi
 

@@ -11,6 +11,7 @@
 #     That is SLOW: expect roughly 15-40 minutes to reach the desktop.
 #     This is a "does it boot?" proof, not a speed test.
 #   - Needs 4 GB+ of ISO download; free Codespace hours are plenty for this.
+#   - Safe to re-run any time: it stops any previous run of itself first.
 # =============================================================================
 set -euo pipefail
 
@@ -19,6 +20,11 @@ ARTIFACT_NAME="kaal-minimal-test-iso"
 ISO_NAME="KAAL_OS_minimal_test_x86_64.iso"
 WORKDIR="/tmp/kaal-boot-test"
 VNC_PORT=6080
+
+# Stop any previous run of this script, so it is safe to re-run any time
+pkill -f "qemu-system-x86_64.*kaal-boot-test" 2>/dev/null || true
+pkill -f "websockify.*$VNC_PORT" 2>/dev/null || true
+sleep 2
 
 echo "==> [1/4] Installing QEMU + noVNC (takes a minute)..."
 sudo apt-get update -qq

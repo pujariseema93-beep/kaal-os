@@ -76,6 +76,9 @@ jobs:
             -e RELEASEVER=${{ env.RELEASEVER }}
           run: |
             set -euxo pipefail
+            # Longer timeouts + more retries: Fedora mirrors occasionally stall.
+            printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
+
             dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev
 
             # anaconda needs udev — not present in a plain container.
@@ -91,16 +94,34 @@ jobs:
             # container's overlayfs can hang anaconda)
             rm -rf /workspace/lmc-tmp /workspace/lmc-results
             mkdir -p /workspace/lmc-tmp
-            livemedia-creator \
-              --ks distro-test-minimal.ks \
-              --no-virt \
-              --tmp /workspace/lmc-tmp \
-              --resultdir /workspace/lmc-results \
-              --releasever "${RELEASEVER}" \
-              --make-iso \
-              --iso-only \
-              --compression gzip \
-              2>&1 | tee /workspace/build.log
+            # Retry once: mirror timeouts ("Failed to download packages") are
+            # transient — a second pass often lands on a working mirror.
+            set +e
+            LMC_RC=1
+            for attempt in 1 2; do
+              rm -rf /workspace/lmc-results
+              livemedia-creator \
+                --ks distro-test-minimal.ks \
+                --no-virt \
+                --tmp /workspace/lmc-tmp \
+                --resultdir /workspace/lmc-results \
+                --releasever "${RELEASEVER}" \
+                --make-iso \
+                --iso-only \
+                --compression gzip \
+                2>&1 | tee /workspace/build.log
+              LMC_RC=${PIPESTATUS[0]}
+              [ "${LMC_RC}" = "0" ] && break
+              echo "=== smoke attempt ${attempt} failed (rc=${LMC_RC}) ==="
+              [ "${attempt}" = "1" ] && { echo "retrying in 60s..."; sleep 60; }
+            done
+            set -e
+
+            if [ "${LMC_RC}" != "0" ]; then
+              echo "smoke build failed after 2 attempts — build.log tail:"
+              tail -80 /workspace/build.log
+              exit 1
+            fi
 
             ls -lh /workspace/lmc-results/
             cp /workspace/lmc-results/*.iso /workspace/ 2>/dev/null || {
@@ -147,6 +168,9 @@ jobs:
             -e STAGE_DIR=${{ env.STAGE_DIR }}
           run: |
             set -euxo pipefail
+            # Longer timeouts + more retries: Fedora mirrors occasionally stall.
+            printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
+
             dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev
 
             # anaconda needs udev — not present in a plain container.
@@ -176,19 +200,26 @@ jobs:
             rm -rf /workspace/lmc-tmp /workspace/lmc-results
             mkdir -p /workspace/lmc-tmp
             set +e
-            livemedia-creator \
-              --ks distro-live.ks \
-              --no-virt \
-              --tmp /workspace/lmc-tmp \
-              --resultdir /workspace/lmc-results \
-              --releasever "${RELEASEVER}" \
-              --project "KAAL OS" \
-              --volid "KAAL_OS_LIVE" \
-              --make-iso \
-              --iso-only \
-              --compression xz \
-              2>&1 | tee /workspace/build.log
-            LMC_RC=${PIPESTATUS[0]}
+            LMC_RC=1
+            for attempt in 1 2; do
+              rm -rf /workspace/lmc-results
+              livemedia-creator \
+                --ks distro-live.ks \
+                --no-virt \
+                --tmp /workspace/lmc-tmp \
+                --resultdir /workspace/lmc-results \
+                --releasever "${RELEASEVER}" \
+                --project "KAAL OS" \
+                --volid "KAAL_OS_LIVE" \
+                --make-iso \
+                --iso-only \
+                --compression xz \
+                2>&1 | tee /workspace/build.log
+              LMC_RC=${PIPESTATUS[0]}
+              [ "${LMC_RC}" = "0" ] && break
+              echo "=== full-build attempt ${attempt} failed (rc=${LMC_RC}) ==="
+              [ "${attempt}" = "1" ] && { echo "retrying in 60s..."; sleep 60; }
+            done
             set -e
 
             if [ "${LMC_RC}" != "0" ]; then

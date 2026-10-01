@@ -371,6 +371,12 @@ isomd5sum
 -postfix
 -nano
 -nano-default-editor
+# noopenh264: the OpenH264 *stub* library. Its RPM is not downloadable from any
+# mirror ("No more mirrors to try") which killed every full build at ~56% of the
+# package download. gstreamer1-plugin-openh264 pulls it in; the stub only exists
+# to satisfy the linker when the real (Cisco) openh264 is absent, so excluding it
+# is safe for a build image.
+-noopenh264
 
 
 # ---- KAAL OS dependency-audit fixes (build-critical) ----

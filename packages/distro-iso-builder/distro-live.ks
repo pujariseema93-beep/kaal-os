@@ -64,8 +64,12 @@ services --disabled=
 # =============================================================================
 
 # ---- Fedora Base ----
-url --url="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/"
-repo --name=fedora --baseurl=https://download.fedoraproject.org/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/ --cost=1
+# Use the Fedora MIRRORLIST, not a single baseurl. With one baseurl dnf has
+# exactly one mirror to try; when that mirror lacked one file (noopenh264)
+# the install died with "No more mirrors to try". A mirrorlist gives dnf the
+# full mirror set with automatic failover.
+url --mirrorlist="https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch"
+repo --name=fedora --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch --cost=1
 # NOTE: build pins to RELEASE repos only (no *-updates): RPM Fusion's updates
 # tree currently skews ahead of Fedora's updates (Qt6.11/pipewire/vlc/libheif
 # version mismatches), which breaks dependency resolution. Release-only is
@@ -371,12 +375,6 @@ isomd5sum
 -postfix
 -nano
 -nano-default-editor
-# noopenh264: the OpenH264 *stub* library. Its RPM is not downloadable from any
-# mirror ("No more mirrors to try") which killed every full build at ~56% of the
-# package download. gstreamer1-plugin-openh264 pulls it in; the stub only exists
-# to satisfy the linker when the real (Cisco) openh264 is absent, so excluding it
-# is safe for a build image.
--noopenh264
 
 
 # ---- KAAL OS dependency-audit fixes (build-critical) ----

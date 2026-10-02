@@ -126,6 +126,9 @@ dosfstools
 # ---- Bootloader (installed via bootloader package, but include here) ----
 grub2
 grub2-efi-x64
+grub2-efi-x64-cdboot   # provides boot/efi/EFI/*/gcdx64.efi — without it lorax
+                       # never creates EFI/BOOT in the ISO and xorriso aborts
+                       # ("Cannot determine attributes of source file .../EFI/BOOT")
 grub2-tools
 grub2-tools-extra
 shim-x64

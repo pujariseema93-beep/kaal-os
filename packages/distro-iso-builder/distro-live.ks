@@ -330,7 +330,11 @@ fwupd
 fwupd-efi
 power-profiles-daemon
 thermald
-tlp                  # Power management (alternative)
+# REMOVED: tlp — ships the same D-Bus files as power-profiles-daemon
+# (/usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service and
+# org.freedesktop.UPower.PowerProfiles.service), which fails the rpm
+# transaction with a file conflict. power-profiles-daemon is the Fedora
+# default and is already in the list above.
 smartmontools
 gdisk
 parted

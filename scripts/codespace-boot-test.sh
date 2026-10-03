@@ -64,12 +64,16 @@ fi
 ls -lh "$ISO_PATH"
 
 echo "==> [3/4] Starting QEMU (software emulation — slow but real)..."
-# Give the VM half the machine's RAM, capped at 4 GB. Override with VM_MEM=...
+# Give the VM half the machine's RAM, capped at 4 GB. An explicit VM_MEM=...
+# is used as-is, so a big Codespace can hand the full ISO more room.
 FREE_MB=$(free -m | awk '/^Mem:/{print $2}')
-VM_MEM="${VM_MEM:-$(( FREE_MB / 2 ))}"; [ "$VM_MEM" -gt 4096 ] && VM_MEM=4096
+if [ -z "${VM_MEM:-}" ]; then
+    VM_MEM=$(( FREE_MB / 2 ))
+    [ "$VM_MEM" -gt 4096 ] && VM_MEM=4096
+fi
 # Use the machine's cores, capped at 4 (software emulation benefits from cores).
 SMP="${SMP:-$(nproc)}"; [ "$SMP" -gt 4 ] && SMP=4
-echo "    VM memory: ${VM_MEM} MB, CPUs: ${SMP}"
+echo "    Host RAM: ${FREE_MB} MB · VM memory: ${VM_MEM} MB · CPUs: ${SMP}"
 
 qemu-system-x86_64 \
     -machine q35 \

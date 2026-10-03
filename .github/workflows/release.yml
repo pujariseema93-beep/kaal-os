@@ -1,8 +1,13 @@
 # =============================================================================
 # release.yml — Release Pipeline
 # =============================================================================
-# Triggers when a version tag (v*) is pushed. Downloads the ISO from the
-# latest successful build, creates a GitHub Release, and attaches the ISO.
+# Triggered by a version tag (v*) or manually. Takes the ISO from the latest
+# successful "Build ISO" run, splits it into parts that are each under GitHub's
+# 2 GiB per-asset limit, and publishes a GitHub Release containing:
+#   - the ISO parts
+#   - SHA256SUMS (per part) and the ISO's own .sha256
+#   - MANIFEST.txt (read by the download scripts)
+#   - scripts/download-iso.sh and scripts/download-iso.ps1
 # =============================================================================
 
 name: Release
@@ -13,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (e.g., 0.1.0)'
+        description: 'Version to publish (e.g. 0.0.1-testiso)'
         required: true
         type: string
 
@@ -22,17 +27,17 @@ permissions:
 
 env:
   DISTRO_NAME: 'KAAL OS'
+  PART_SIZE: '1900M'   # GitHub release assets must each be under 2 GiB
 
 jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
 
-      # ---- Determine version ----
       - name: Get version
         id: version
         run: |
@@ -41,11 +46,18 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/v}"
           fi
-          echo "Version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version: $VERSION"
 
-      # ---- Download ISO from latest build ----
-      - name: Download ISO from build artifact
+      # ---- The ISO artifact is ~7 GB zipped; make room before downloading ----
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          sudo apt-get clean || true
+          df -h /
+
+      - name: Download ISO artifact
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: Build ISO
@@ -54,95 +66,130 @@ jobs:
           path: iso-artifact
           search_artifacts: true
 
-      # ---- Find ISO ----
-      - name: Find ISO
+      - name: Find the ISO
         id: findiso
         run: |
           ISO_FILE=$(find iso-artifact -name "*.iso" -type f | head -1)
           if [ -z "$ISO_FILE" ]; then
-            echo "::error::No ISO found. Run the Build ISO workflow first."
+            echo "::error::No ISO found in the artifact. Run Build ISO first."
             exit 1
           fi
           SHA_FILE=$(find iso-artifact -name "*.sha256" -type f | head -1)
-          echo "iso_path=$ISO_FILE" >> $GITHUB_OUTPUT
-          echo "sha_path=$SHA_FILE" >> $GITHUB_OUTPUT
-          echo "iso_size=$(du -h "$ISO_FILE" | cut -f1)" >> $GITHUB_OUTPUT
+          echo "iso_path=$ISO_FILE" >> "$GITHUB_OUTPUT"
+          echo "sha_path=$SHA_FILE" >> "$GITHUB_OUTPUT"
+          echo "iso_name=$(basename "$ISO_FILE")" >> "$GITHUB_OUTPUT"
+          ls -lh "$ISO_FILE"
 
-      # ---- Generate release notes ----
+      - name: Split the ISO into <2 GiB parts
+        id: split
+        run: |
+          set -euo pipefail
+          ISO="${{ steps.findiso.outputs.iso_path }}"
+          NAME="${{ steps.findiso.outputs.iso_name }}"
+          mkdir -p out
+
+          split -b "$PART_SIZE" -d --suffix-length=2 "$ISO" "out/${NAME}.part-"
+          ( cd out && sha256sum ./*.part-* > SHA256SUMS )
+
+          if [ -n "${{ steps.findiso.outputs.sha_path }}" ]; then
+            cp "${{ steps.findiso.outputs.sha_path }}" "out/${NAME}.sha256"
+          else
+            sha256sum "$ISO" > "out/${NAME}.sha256"
+          fi
+          ISO_SHA=$(awk '{print $1}' "out/${NAME}.sha256")
+
+          {
+            echo "KAAL OS ISO - download manifest"
+            echo "iso=${NAME}"
+            echo "sha256=${ISO_SHA}"
+            echo "part_size=${PART_SIZE}"
+            for p in out/"${NAME}".part-*; do
+              echo "part=$(basename "$p")"
+            done
+          } > out/MANIFEST.txt
+
+          cp scripts/download-iso.sh scripts/download-iso.ps1 out/
+          rm -f "$ISO"    # free ~7 GB before the release upload
+          echo "iso_sha=${ISO_SHA}" >> "$GITHUB_OUTPUT"
+          echo "part_count=$(ls out/"${NAME}".part-* | wc -l)" >> "$GITHUB_OUTPUT"
+          ls -lh out/
+          df -h /
+
       - name: Generate release notes
-        id: notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          DATE=$(date '+%Y-%m-%d')
-
+          NAME="${{ steps.findiso.outputs.iso_name }}"
           cat > release-notes.md << NOTES
-          ## ${{ env.DISTRO_NAME }} v${VERSION}
+          ## ${DISTRO_NAME} v${VERSION} — test build
 
-          **Release Date:** ${DATE}
-          **Base:** Fedora 44
-          **ISO Size:** ${{ steps.findiso.outputs.iso_size }}
+          **Base:** Fedora 44 (x86_64) · **ISO:** \`${NAME}\` · **Parts:** ${{ steps.split.outputs.part_count }}
 
-          ### Download
+          This is a **pre-1.0 test build**, published so people can try it and
+          give feedback. It is a live ISO: it runs from the USB stick and does
+          not touch your installed system.
 
-          Download the ISO file below and write it to a USB drive:
+          ### Download (one command)
+
+          The ISO is split into parts, each under GitHub's 2 GiB per-file limit.
+          The script below downloads every part, checks all the checksums,
+          reassembles the ISO and verifies it:
 
           \`\`\`bash
-          # Verify checksum
-          sha256sum -c *.sha256
-
-          # Write to USB (replace /dev/sdX)
-          sudo dd if=*.iso of=/dev/sdX bs=4M status=progress && sync
+          # Linux / macOS
+          curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/scripts/download-iso.sh | bash -s -- v${VERSION}
           \`\`\`
 
-          ### Features
+          \`\`\`powershell
+          # Windows (PowerShell)
+          irm https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/scripts/download-iso.ps1 | iex
+          \`\`\`
 
-          - Fedora 44 base, SELinux enforcing, Secure Boot supported
-          - 6 desktop environments selectable at install (KDE, GNOME, Hyprland, Sway, XFCE, Cinnamon)
-          - 5 software profiles (Gaming, Developer, Power User, Daily, Minimal)
-          - Kaal Spaces: 4 built-in runtime profiles + unlimited custom spaces
-          - Baseline OS hardening: USBGuard, auditd, hardened sysctl, ClamAV, VPN stack
-          - NVIDIA RTX 40-series+ and AMD GPU auto-detection
-          - Auto-update check on every boot
-          - Btrfs snapshot rollback support
-          - GRUB2 or systemd-boot bootloader selection
-          - Full hardware support (WiFi, Bluetooth, audio, power, input, USB)
-          - Calamares installer with custom selection screens
+          Then write the ISO to a USB stick (16 GB recommended):
+          - Windows: Rufus (rufus.ie) or balenaEtcher
+          - Linux/macOS: \`sudo dd if=${NAME} of=/dev/sdX bs=4M status=progress oflag=sync\`
 
-          ### Known Issues
+          ### What's inside
 
-          - Pre-1.0 software — expect rough edges
-          - NVIDIA drivers build on first boot (akmod)
-          - Some emulators may require additional BIOS files
+          - **5 desktop environments:** KDE Plasma 6, GNOME, XFCE, Cinnamon, Sway
+          - **Gaming:** Steam, Lutris, Wine, RetroArch, PCSX2, Dolphin, MangoHud, GameMode, Gamescope
+          - **GPU:** NVIDIA akmod driver
+          - **Installer:** Calamares
+          - **Security:** ClamAV, USBGuard, auditd, WireGuard/OpenVPN
+          - **Development:** gcc, clang, Rust, Go, Java 25
+          - **Daily:** Firefox, LibreOffice, GIMP, Blender, Krita, Kdenlive, OBS
+          - BIOS + UEFI bootable · autologin as \`liveuser\`
+
+          Built entirely in GitHub Actions from the scripts in this repository.
 
           ### Checksums
 
-          See the .sha256 file for the ISO checksum.
+          - Per part: \`SHA256SUMS\`
+          - Whole ISO: \`${NAME}.sha256\` → \`${{ steps.split.outputs.iso_sha }}\`
+
+          ### Known issues
+
+          - Pre-1.0 software: expect rough edges.
+          - The full desktop stack is heavy; on 4 GB RAM pick XFCE or Sway.
+          - NVIDIA drivers build on first boot (akmod), which takes a while.
           NOTES
 
-          echo "Release notes generated."
-
-      # ---- Create GitHub Release ----
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: "${{ env.DISTRO_NAME }} v${{ steps.version.outputs.version }}"
+          name: "${{ env.DISTRO_NAME }} v${{ steps.version.outputs.version }} (test build)"
           body_path: release-notes.md
           draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
-          files: |
-            ${{ steps.findiso.outputs.iso_path }}
-            ${{ steps.findiso.outputs.sha_path }}
+          prerelease: true
+          files: out/*
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ---- Summary ----
       - name: Release summary
         run: |
-          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Distro | ${{ env.DISTRO_NAME }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| ISO Size | ${{ steps.findiso.outputs.iso_size }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Release URL | ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "## Release summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | v${{ steps.version.outputs.version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Parts | ${{ steps.split.outputs.part_count }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ISO SHA-256 | \`${{ steps.split.outputs.iso_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"

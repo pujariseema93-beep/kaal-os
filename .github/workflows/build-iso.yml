@@ -367,6 +367,72 @@ jobs:
             - The full desktop stack is heavy; on 4 GB RAM pick XFCE or Sway.
             - NVIDIA drivers build on first boot (akmod), which takes a while.
 
+      # ---- Boot test: does it actually boot? Screenshots are the proof ----
+      # GitHub runners have no KVM, so this is software emulation: slow, but it
+      # captures the real guest display through the QEMU monitor. Non-fatal on
+      # purpose — the build has already succeeded by the time this runs.
+      - name: Boot test in QEMU (screenshot proof)
+        id: boottest
+        continue-on-error: true
+        timeout-minutes: 75
+        run: |
+          set -uo pipefail
+          ISO=$(ls KAAL_OS_*_live_x86_64.iso | head -1)
+          if [ -z "$ISO" ]; then
+            echo "::warning::no ISO on disk for the boot test"
+            exit 0
+          fi
+          echo "ISO under test: $ISO"
+
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 ovmf >/dev/null
+          pip install -q pillow >/dev/null 2>&1 || true
+
+          mkdir -p boottest
+          CODE=$(ls /usr/share/OVMF/OVMF_CODE*.fd 2>/dev/null | head -1)
+          VARS=$(ls /usr/share/OVMF/OVMF_VARS*.fd 2>/dev/null | head -1)
+          if [ -z "$CODE" ] || [ -z "$VARS" ]; then
+            echo "::warning::no OVMF firmware found; skipping the boot test"
+            exit 0
+          fi
+          cp "$VARS" boottest/OVMF_VARS.fd
+
+          # -display none keeps the framebuffer alive while opening no window,
+          # so the monitor's screendump can still capture it.
+          qemu-system-x86_64 \
+            -machine q35,accel=tcg -cpu max -smp 4 -m 4096 \
+            -drive if=pflash,format=raw,readonly=on,file="$CODE" \
+            -drive if=pflash,format=raw,file=boottest/OVMF_VARS.fd \
+            -cdrom "$ISO" -boot d \
+            -vga std -display none \
+            -serial file:boottest/serial.log \
+            -monitor unix:boottest/mon.sock,server,nowait &
+          echo $! > boottest/qemu.pid
+          sleep 20
+
+          # 12 shots, 3 minutes apart = ~36 minutes of watching it come up.
+          python3 scripts/ci-boot-screenshot.py \
+            --monitor boottest/mon.sock --outdir boottest \
+            --interval 180 --count 12 --press-enter-first || true
+
+          kill "$(cat boottest/qemu.pid)" 2>/dev/null || true
+          echo "--- boot test output ---"
+          ls -lh boottest/ || true
+          echo "--- serial log (last 40 lines) ---"
+          tail -40 boottest/serial.log 2>/dev/null || echo "(no serial output)"
+          echo "screenshots=$(ls boottest/*.png 2>/dev/null | wc -l)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload boot-test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaal-boot-test-screenshots
+          path: |
+            boottest/*.png
+            boottest/serial.log
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Build summary
         if: always()
         run: |
@@ -375,3 +441,5 @@ jobs:
           echo "Fedora base: ${RELEASEVER} · staged packages: 7" >> $GITHUB_STEP_SUMMARY
           echo "Download the ISO from this run's **Artifacts** section (top of page)." >> $GITHUB_STEP_SUMMARY
           echo "Artifact retention: 14 days — re-run the workflow for a fresh one." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Boot test: see the **kaal-boot-test-screenshots** artifact (the guest display, captured every 3 min)." >> $GITHUB_STEP_SUMMARY

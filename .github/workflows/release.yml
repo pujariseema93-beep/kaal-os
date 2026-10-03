@@ -57,10 +57,12 @@ jobs:
           sudo apt-get clean || true
           df -h /
 
+      # ---- NOTE: 'workflow' must be the workflow FILE name, not its display
+      # ---- name ("Build ISO"), otherwise this action 404s.
       - name: Download ISO artifact
         uses: dawidd6/action-download-artifact@v3
         with:
-          workflow: Build ISO
+          workflow: build-iso.yml
           workflow_conclusion: success
           name: kaal-os-live-iso
           path: iso-artifact

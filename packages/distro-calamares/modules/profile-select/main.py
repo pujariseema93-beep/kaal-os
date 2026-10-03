@@ -28,11 +28,11 @@ import os
 # Try to import PyQt for the UI
 try:
     from PyQt5.QtWidgets import (
-        QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+        QWidget, QVBoxLayout, QHBoxLayout, QLabel,
         QButtonGroup, QRadioButton, QScrollArea, QFrame, QSizePolicy
     )
     from PyQt5.QtCore import Qt
-    from PyQt5.QtGui import QFont, QIcon
+    from PyQt5.QtGui import QFont
     HAS_PYQT = True
 except ImportError:
     HAS_PYQT = False
@@ -72,7 +72,11 @@ def load_config():
             "title": "Software Profile",
             "profiles": [
                 {"id": "gaming", "label": "Gaming", "description": "Steam, Proton, emulators, performance tools."},
-                {"id": "developer", "label": "Developer", "description": "IDEs, languages, containers, terminal tools."},
+                {
+                    "id": "developer",
+                    "label": "Developer",
+                    "description": "IDEs, languages, containers, terminal tools.",
+                },
                 {"id": "power-user", "label": "Power User", "description": "Tiling WMs, system tools, customization."},
                 {"id": "daily", "label": "Daily Life", "description": "Browser, office, media, creative apps."},
                 {"id": "minimal", "label": "Minimal", "description": "Base system + DE only."},
@@ -101,7 +105,6 @@ class ProfileCard(QFrame):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setCursor(Qt.PointingHandCursor)
 
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(4)
@@ -128,7 +131,10 @@ class ProfileCard(QFrame):
     def set_selected(self, selected):
         self.radio.setChecked(selected)
         if selected:
-            self.setStyleSheet("ProfileCard { border: 2px solid #39bae6; border-radius: 8px; background: rgba(57, 186, 230, 0.05); }")
+            self.setStyleSheet(
+                "ProfileCard { border: 2px solid #39bae6; border-radius: 8px; "
+                "background: rgba(57, 186, 230, 0.05); }"
+            )
         else:
             self.setStyleSheet("ProfileCard { border: 1px solid #333; border-radius: 8px; }")
 
@@ -235,7 +241,7 @@ class ProfileSelectionWidget(QWidget):
         with open(context_file, "w") as f:
             f.write(f"DISTRO_PROFILE={self.selected_profile}\n")
             f.write("DISTRO_PROFILE_PACKAGES_FILE="
-             f"{packages_file}\n")
+                    f"{packages_file}\n")
 
 
 # =============================================================================

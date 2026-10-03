@@ -457,8 +457,8 @@ apply_compositor() {
 KWRITECONFIG="$(command -v kwriteconfig6 || command -v kwriteconfig5 || true)"
 
 if [[ -n "$KWRITECONFIG" ]]; then
-        local animations="true"
-        [[ "$effects" == "false" ]] && animations="false"
+        # NOTE: the GNOME branch above applies the animations setting; this
+        # KDE branch does not yet (the old unused variable was dropped).
         "$KWRITECONFIG" --file ~/.config/kwinrc --group Compositing \
             --key OpenGLIsUnsafe "$([[ "$vsync" == "false" ]] && echo true || echo false)" 2>/dev/null || true
     fi

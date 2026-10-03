@@ -8,7 +8,6 @@ set -euo pipefail
 THEME_NAME="kaal"
 THEME_SRC="$(dirname "$0")/../themes/${THEME_NAME}"
 THEME_DST="/boot/grub2/themes/${THEME_NAME}"
-GRUB_DEFAULT="/etc/default/grub"
 GRUB_CONF_DIR="/etc/default/grub.d"
 
 log() {

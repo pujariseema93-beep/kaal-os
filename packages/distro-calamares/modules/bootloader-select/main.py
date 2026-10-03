@@ -41,8 +41,18 @@ def load_config():
         return {
             "title": "Bootloader",
             "options": [
-                {"id": "grub2", "label": "GRUB2", "description": "Default bootloader. UEFI + BIOS. Snapshot booting.", "recommended": True},
-                {"id": "systemd-boot", "label": "systemd-boot", "description": "Simpler, faster, UEFI only.", "recommended": False},
+                {
+                    "id": "grub2",
+                    "label": "GRUB2",
+                    "description": "Default bootloader. UEFI + BIOS. Snapshot booting.",
+                    "recommended": True,
+                },
+                {
+                    "id": "systemd-boot",
+                    "label": "systemd-boot",
+                    "description": "Simpler, faster, UEFI only.",
+                    "recommended": False,
+                },
             ],
             "default": "grub2"
         }
@@ -73,7 +83,10 @@ class BootloaderCard(QFrame):
 
         if bl_data.get("recommended", False):
             rec = QLabel("Recommended")
-            rec.setStyleSheet("background: rgba(57,186,230,0.15); color: #39bae6; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;")
+            rec.setStyleSheet(
+                "background: rgba(57,186,230,0.15); color: #39bae6; padding: 2px 8px; "
+                "border-radius: 4px; font-size: 10px; font-weight: bold;"
+            )
             top.addWidget(rec)
 
         # Feature badges
@@ -83,12 +96,18 @@ class BootloaderCard(QFrame):
             badge = QLabel("UEFI only")
         else:
             badge = QLabel("BIOS only")
-        badge.setStyleSheet("background: rgba(127,217,98,0.15); color: #7fd962; padding: 2px 8px; border-radius: 4px; font-size: 10px;")
+        badge.setStyleSheet(
+            "background: rgba(127,217,98,0.15); color: #7fd962; padding: 2px 8px; "
+            "border-radius: 4px; font-size: 10px;"
+        )
         top.addWidget(badge)
 
         if bl_data.get("supports_snapshots"):
             snap = QLabel("Snapshots")
-            snap.setStyleSheet("background: rgba(249,181,74,0.15); color: #f9b54a; padding: 2px 8px; border-radius: 4px; font-size: 10px;")
+            snap.setStyleSheet(
+                "background: rgba(249,181,74,0.15); color: #f9b54a; padding: 2px 8px; "
+                "border-radius: 4px; font-size: 10px;"
+            )
             top.addWidget(snap)
 
         top.addStretch()
@@ -103,7 +122,10 @@ class BootloaderCard(QFrame):
     def set_selected(self, sel):
         self.radio.setChecked(sel)
         if sel:
-            self.setStyleSheet("BootloaderCard { border: 2px solid #39bae6; border-radius: 8px; background: rgba(57,186,230,0.05); }")
+            self.setStyleSheet(
+                "BootloaderCard { border: 2px solid #39bae6; border-radius: 8px; "
+                "background: rgba(57,186,230,0.05); }"
+            )
         else:
             self.setStyleSheet("BootloaderCard { border: 1px solid #333; border-radius: 8px; }")
 
@@ -127,7 +149,10 @@ class BootloaderWidget(QWidget):
         title.setFont(tf)
         layout.addWidget(title)
 
-        sub = QLabel("Choose your bootloader. GRUB2 is recommended for most users and supports btrfs snapshot rollback.")
+        sub = QLabel(
+            "Choose your bootloader. GRUB2 is recommended for most users and "
+            "supports btrfs snapshot rollback."
+        )
         sub.setStyleSheet("color: #888; font-size: 12px;")
         sub.setWordWrap(True)
         layout.addWidget(sub)

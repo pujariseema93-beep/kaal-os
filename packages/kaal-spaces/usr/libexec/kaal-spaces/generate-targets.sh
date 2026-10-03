@@ -19,8 +19,8 @@ log() {
     echo "[kaal-spaces] $1" >&2
 }
 
-# Built-in spaces that always have targets
-BUILTIN="gaming development power normal"
+# NOTE: built-in spaces (gaming, development, power, normal) only get a
+# target if a matching *.conf exists in $SPACES_DIR.
 
 # Find all space config files
 find_spaces() {
@@ -116,9 +116,9 @@ for f in "$SYSTEMD_DIR"/kaal-space-*.target "$SYSTEMD_DIR"/kaal-space-*-setup.se
 done
 
 # Generate targets for all discovered spaces
-spaces=$(find_spaces)
+space_list=$(find_spaces)
 count=0
-for space in $spaces; do
+for space in $space_list; do
     generate_target "$space"
     ((count++))
 done

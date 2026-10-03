@@ -218,7 +218,8 @@ post_build() {
     fi
 
     # Rename to our distro name
-    local new_name="$RESULTDIR/${DISTRO_NAME}_$(date '+%Y%m%d')_live_x86_64.iso"
+    local new_name
+    new_name="$RESULTDIR/${DISTRO_NAME}_$(date '+%Y%m%d')_live_x86_64.iso"
     mv "$iso_file" "$new_name"
 
     # Generate checksums

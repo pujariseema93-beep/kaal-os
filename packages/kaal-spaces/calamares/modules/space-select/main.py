@@ -17,7 +17,6 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame
 )
-from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QPalette
 
 # Space definitions
@@ -25,21 +24,30 @@ SPACES = [
     {
         "name": "gaming",
         "display_name": "Gaming",
-        "description": "Performance mode for gaming. Max CPU/GPU, low-latency audio, game launchers, DND notifications.",
+        "description": (
+            "Performance mode for gaming. Max CPU/GPU, low-latency audio, "
+            "game launchers, DND notifications."
+        ),
         "icon": "🎮",
         "color": "#FF6B35",
     },
     {
         "name": "development",
         "display_name": "Development",
-        "description": "Development environment with IDEs, containers (Docker/Distrobox), terminal tools, balanced power.",
+        "description": (
+            "Development environment with IDEs, containers (Docker/Distrobox), "
+            "terminal tools, balanced power."
+        ),
         "icon": "💻",
         "color": "#4A90D9",
     },
     {
         "name": "power",
         "display_name": "Power User",
-        "description": "Full system access. All tools exposed, tiling WM, SSH enabled, verbose logging, system monitors.",
+        "description": (
+            "Full system access. All tools exposed, tiling WM, SSH enabled, "
+            "verbose logging, system monitors."
+        ),
         "icon": "⚡",
         "color": "#9B59B6",
     },

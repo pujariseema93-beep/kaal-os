@@ -14,7 +14,7 @@ import os
 
 try:
     from PyQt5.QtWidgets import (
-        QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+        QWidget, QVBoxLayout, QHBoxLayout, QLabel,
         QButtonGroup, QRadioButton, QScrollArea, QFrame, QSizePolicy,
     )
     from PyQt5.QtCore import Qt
@@ -142,7 +142,10 @@ class DECard(QFrame):
     def set_selected(self, selected):
         self.radio.setChecked(selected)
         if selected:
-            self.setStyleSheet("DECard { border: 2px solid #39bae6; border-radius: 8px; background: rgba(57, 186, 230, 0.05); }")
+            self.setStyleSheet(
+                "DECard { border: 2px solid #39bae6; border-radius: 8px; "
+                "background: rgba(57, 186, 230, 0.05); }"
+            )
         else:
             self.setStyleSheet("DECard { border: 1px solid #333; border-radius: 8px; }")
 

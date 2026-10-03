@@ -27,7 +27,9 @@ if [ "$PROFILE" = "custom" ] || [ "$PROFILE" = "minimal" ]; then
     echo "Skipping profile installation ($PROFILE)"
     if [ "$PROFILE" = "minimal" ] && [ -f "$PROFILE_DIR/minimal.list" ]; then
         echo "Installing minimal packages..."
-        dnf5 install -y $(grep -v '^#' "$PROFILE_DIR/minimal.list" | grep -v '^$' | tr '\n' ' ') 2>/dev/null || true
+        # xargs hands the package list over as separate arguments (no word-splitting)
+        grep -v '^#' "$PROFILE_DIR/minimal.list" | grep -v '^$' \
+            | xargs -r dnf5 install -y 2>/dev/null || true
     fi
     echo "=== Profile Installation Complete ==="
     exit 0

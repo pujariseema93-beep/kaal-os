@@ -13,7 +13,7 @@ fi
 
 # Kill resource-heavy background processes (docker containers, VMs)
 if command -v docker &>/dev/null; then
-    docker stop $(docker ps -q) 2>/dev/null || true
+    docker ps -q | xargs -r docker stop 2>/dev/null || true
 fi
 
 logger -t kaal-spaces "Gaming space pre-enter hook completed"

@@ -36,9 +36,10 @@ on:
           - full-only
   push:
     branches: [main]
+    tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write   # the full-build job publishes a GitHub Release on v* tags
 
 env:
   DISTRO_NAME: 'KAAL OS'
@@ -270,6 +271,101 @@ jobs:
             build.log
           retention-days: 14
           compression-level: 0
+
+      # ---- On a version tag, publish the Release straight from this job ----
+      # The ISO is already on this runner, so it is split HERE instead of
+      # downloading the ~7 GB artifact in a separate job — that download was
+      # repeatedly cancelled by the runner.
+      - name: Split the ISO into <2 GiB parts
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: split
+        run: |
+          set -euo pipefail
+          ISO=$(ls KAAL_OS_*_live_x86_64.iso | head -1)
+          NAME="$(basename "$ISO")"
+          mkdir -p out
+          split -b 1900M -d --suffix-length=2 "$ISO" "out/${NAME}.part-"
+          ( cd out && sha256sum ./*.part-* > SHA256SUMS )
+          cp "${NAME}.sha256" "out/${NAME}.sha256"
+          ISO_SHA=$(awk '{print $1}' "${NAME}.sha256")
+          {
+            echo "KAAL OS ISO - download manifest"
+            echo "iso=${NAME}"
+            echo "sha256=${ISO_SHA}"
+            echo "part_size=1900M"
+            for p in out/"${NAME}".part-*; do
+              echo "part=$(basename "$p")"
+            done
+          } > out/MANIFEST.txt
+          cp scripts/download-iso.sh scripts/download-iso.ps1 out/
+          echo "iso_name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "iso_sha=${ISO_SHA}" >> "$GITHUB_OUTPUT"
+          echo "part_count=$(ls out/"${NAME}".part-* | wc -l)" >> "$GITHUB_OUTPUT"
+          ls -lh out/
+          df -h /
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "KAAL OS ${{ github.ref_name }} (test build)"
+          draft: false
+          prerelease: true
+          files: out/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            ## KAAL OS ${{ github.ref_name }} — test build
+
+            **Base:** Fedora 44 (x86_64) · **ISO:** ${{ steps.split.outputs.iso_name }} · **Parts:** ${{ steps.split.outputs.part_count }}
+
+            This is a **pre-1.0 test build**, published so people can try it and
+            give feedback. It is a live ISO: it runs from the USB stick and does
+            not touch your installed system.
+
+            ### Download (one command)
+
+            The ISO is split into parts, each under GitHub's 2 GiB per-file limit.
+            The script below downloads every part, checks all the checksums,
+            reassembles the ISO and verifies it:
+
+            ```bash
+            # Linux / macOS
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/download-iso.sh | bash -s -- ${{ github.ref_name }}
+            ```
+
+            ```powershell
+            # Windows (PowerShell)
+            irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/download-iso.ps1 | iex
+            ```
+
+            Then write the ISO to a USB stick (16 GB recommended):
+            - Windows: Rufus (rufus.ie) or balenaEtcher
+            - Linux/macOS: `sudo dd if=${{ steps.split.outputs.iso_name }} of=/dev/sdX bs=4M status=progress oflag=sync`
+
+            ### What's inside
+
+            - **5 desktop environments:** KDE Plasma 6, GNOME, XFCE, Cinnamon, Sway
+            - **Gaming:** Steam, Lutris, Wine, RetroArch, PCSX2, Dolphin, MangoHud, GameMode, Gamescope
+            - **GPU:** NVIDIA akmod driver
+            - **Installer:** Calamares
+            - **Security:** ClamAV, USBGuard, auditd, WireGuard/OpenVPN
+            - **Development:** gcc, clang, Rust, Go, Java 25
+            - **Daily:** Firefox, LibreOffice, GIMP, Blender, Krita, Kdenlive, OBS
+            - BIOS + UEFI bootable · autologin as `liveuser`
+
+            Built entirely in GitHub Actions from the scripts in this repository.
+
+            ### Checksums
+
+            - Per part: `SHA256SUMS`
+            - Whole ISO: `${{ steps.split.outputs.iso_name }}.sha256` → `${{ steps.split.outputs.iso_sha }}`
+
+            ### Known issues
+
+            - Pre-1.0 software: expect rough edges.
+            - The full desktop stack is heavy; on 4 GB RAM pick XFCE or Sway.
+            - NVIDIA drivers build on first boot (akmod), which takes a while.
 
       - name: Build summary
         if: always()

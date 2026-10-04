@@ -691,6 +691,20 @@ elif [ -x /usr/bin/gdm ]; then
     systemctl enable gdm 2>/dev/null || true
 fi
 
+# 4b. Boot into a graphical session. Without this the image lands on a text
+#     console, because nothing pulls the display manager in.
+systemctl set-default graphical.target
+
+# 4c. Which desktop session should the live image autologin into? Pick the
+#     first one that actually exists on this image.
+LIVE_SESSION=""
+for cand in plasma gnome cinnamon xfce sway; do
+    for dir in /usr/share/wayland-sessions /usr/share/xsessions; do
+        if [ -f "$dir/$cand.desktop" ]; then LIVE_SESSION="$cand"; break 2; fi
+    done
+done
+echo "Live session for autologin: ${LIVE_SESSION:-<none found>}" | tee -a "$LOG"
+
 # 5. Set up zram
 echo "Configuring zram..." | tee -a "$LOG"
 if [ -f /etc/systemd/zram-generator.conf ]; then
@@ -739,7 +753,7 @@ systemctl enable distro-first-boot.service 2>/dev/null || true
 
 # ==== Configure SDDM theme (placeholder) ====
 mkdir -p /etc/sddm.conf.d
-cat > /etc/sddm.conf.d/distro.conf << 'SDDEOF'
+cat > /etc/sddm.conf.d/distro.conf << SDDEOF
 [Theme]
 # Theme will be configured in Phase 5
 Current=
@@ -747,9 +761,10 @@ CursorTheme=
 Font=
 
 [Autologin]
-# No autologin on installed system; live image autologins as liveuser
-User=
-Session=
+# Live image autologins as liveuser; the installer can override this later.
+User=liveuser
+Session=${LIVE_SESSION}
+Relogin=false
 SDDEOF
 
 # ==== Configure GDM (placeholder) ====
@@ -759,7 +774,8 @@ cat > /etc/gdm/custom.conf << 'GDMEOF'
 # Theme will be configured in Phase 5
 [daemon]
 WaylandEnable=true
-AutomaticLoginEnable=false
+AutomaticLoginEnable=true
+AutomaticLogin=liveuser
 
 [security]
 DisallowRoot=true

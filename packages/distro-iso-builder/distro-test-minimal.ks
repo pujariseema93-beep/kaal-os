@@ -88,6 +88,10 @@ EOF
 # Enable services
 systemctl enable NetworkManager gdm pipewire wireplumber 2>/dev/null || true
 
+# Boot into the graphical session. Without this the live image lands on a text
+# console, because nothing pulls the display manager in.
+systemctl set-default graphical.target
+
 # Live user
 useradd -m -G wheel liveuser 2>/dev/null || true
 passwd -d liveuser 2>/dev/null || true

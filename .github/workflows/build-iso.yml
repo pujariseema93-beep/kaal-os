@@ -413,9 +413,14 @@ jobs:
           # 16 shots, 3 minutes apart = ~48 minutes of watching it come up.
           # The first live boot also builds the NVIDIA akmod, which is slow
           # under emulation, so give it room to reach the desktop.
+          #
+          # --diagnose then logs in as liveuser and screenshots the answers to a
+          # few questions (default target, is sddm enabled, what failed, which
+          # sessions exist). Screenshots alone can show *that* the desktop did
+          # not come up, never *why*.
           python3 scripts/ci-boot-screenshot.py \
             --monitor boottest/mon.sock --outdir boottest \
-            --interval 180 --count 16 --press-enter-first || true
+            --interval 180 --count 16 --press-enter-first --diagnose || true
 
           kill "$(cat boottest/qemu.pid)" 2>/dev/null || true
           echo "--- boot test output ---"

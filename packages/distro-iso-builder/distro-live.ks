@@ -740,9 +740,16 @@ echo "Plymouth theme will be set up later (Phase 5)" | tee -a "$LOG"
 # 9. Configure NetworkManager to auto-connect
 echo "NetworkManager configured" | tee -a "$LOG"
 
-# 10. Create live user if not exists
-if ! id liveuser >/dev/null 2>&1; then
-    echo "Live user not needed (installed system)" | tee -a "$LOG"
+# 10. Make the live user actually usable.
+#     The kickstart's `user --password=""` leaves the account LOCKED, so nobody
+#     can log in at the console and the display manager cannot autologin either.
+#     Clearing the password (exactly what the minimal kickstart does, where
+#     login is proven to work) gives liveuser an empty password.
+if id liveuser >/dev/null 2>&1; then
+    passwd -d liveuser 2>/dev/null || true
+    echo "Live user ready: liveuser, empty password, unlocked" | tee -a "$LOG"
+else
+    echo "WARNING: liveuser does not exist — the live session cannot work" | tee -a "$LOG"
 fi
 
 echo "KAAL OS First boot setup complete!" | tee -a "$LOG"

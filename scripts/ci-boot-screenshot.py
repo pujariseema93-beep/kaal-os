@@ -140,6 +140,11 @@ def main():
         print("\n=== diagnostics: logging in as liveuser and asking the guest ===")
         type_text(mon, "liveuser\n")
         time.sleep(6)
+        # liveuser has an empty password, so the password prompt only needs Enter.
+        # Without this the diagnostic commands get typed as the password and the
+        # login fails with "Login incorrect".
+        type_text(mon, "\n")
+        time.sleep(4)
         shot(mon, args.outdir, "diag_login")
         for name, cmd in DIAGNOSTICS:
             print(f"  typing: {cmd}")

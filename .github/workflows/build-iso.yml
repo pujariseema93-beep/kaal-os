@@ -34,6 +34,14 @@ on:
           - both
           - minimal-only
           - full-only
+      compression:
+        description: 'Squashfs compression — xz is smallest, zstd is much faster'
+        required: true
+        default: 'xz'
+        type: choice
+        options:
+          - xz
+          - zstd
   push:
     branches: [main]
     tags: ['v*']
@@ -195,6 +203,7 @@ jobs:
             done
 
             ksvalidator distro-live.ks
+            echo "squashfs compression: ${{ inputs.compression || 'xz' }}"
 
             # Work on the bind-mounted real filesystem (loop mounts on the
             # container's overlayfs can hang anaconda)
@@ -214,7 +223,7 @@ jobs:
                 --volid "KAAL_OS_LIVE" \
                 --make-iso \
                 --iso-only \
-                --compression xz \
+                --compression ${{ inputs.compression || 'xz' }} \
                 2>&1 | tee /workspace/build.log
               LMC_RC=${PIPESTATUS[0]}
               [ "${LMC_RC}" = "0" ] && break

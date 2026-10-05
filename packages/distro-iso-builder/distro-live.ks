@@ -752,6 +752,36 @@ else
     echo "WARNING: liveuser does not exist — the live session cannot work" | tee -a "$LOG"
 fi
 
+# 10b. Build-time guard: refuse to produce an image that cannot reach a desktop.
+#      All three of these were silent bugs that only showed up at boot, so check
+#      them here where the build can fail loudly instead. The %post is
+#      --erroronfail, so any `exit 1` below stops the build.
+if id liveuser >/dev/null 2>&1; then
+    LIVEUSER_STATE=$(passwd -S liveuser 2>/dev/null | awk '{print $2}')
+    echo "liveuser password state: ${LIVEUSER_STATE} (NP = no password, L = locked)" | tee -a "$LOG"
+    if [ "${LIVEUSER_STATE}" = "L" ]; then
+        echo "ERROR: liveuser is locked — console login and display-manager autologin cannot work" | tee -a "$LOG"
+        exit 1
+    fi
+else
+    echo "ERROR: liveuser does not exist — the live image has no user to log in as" | tee -a "$LOG"
+    exit 1
+fi
+
+if systemctl is-enabled sddm >/dev/null 2>&1 || systemctl is-enabled gdm >/dev/null 2>&1; then
+    echo "display manager: enabled" | tee -a "$LOG"
+else
+    echo "ERROR: no display manager is enabled — the graphical session cannot start" | tee -a "$LOG"
+    exit 1
+fi
+
+DEFAULT_TARGET=$(readlink -f /etc/systemd/system/default.target 2>/dev/null)
+echo "default systemd target: ${DEFAULT_TARGET}" | tee -a "$LOG"
+case "${DEFAULT_TARGET}" in
+    *graphical.target) ;;
+    *) echo "ERROR: default target is not graphical.target — the image would boot to a text console" | tee -a "$LOG"; exit 1 ;;
+esac
+
 echo "KAAL OS First boot setup complete!" | tee -a "$LOG"
 FBSCRIPT
 

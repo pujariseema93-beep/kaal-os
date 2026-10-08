@@ -112,8 +112,8 @@ def main():
                     help="log in and screenshot diagnostic command output")
     ap.add_argument("--login-user", default="liveuser",
                     help="live user to log in as (distro-live.ks sets this user's password)")
-    ap.add_argument("--login-pass", default="live",
-                    help="that user's password (distro-live.ks: liveuser / live)")
+    ap.add_argument("--login-pass", default="kaal-live",
+                    help="that user's password (distro-live.ks: liveuser / kaal-live)")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)

@@ -750,8 +750,14 @@ if id liveuser >/dev/null 2>&1; then
     # give the live user a known, documented password instead. The desktop
     # autologins, so this only matters for the text console and for the boot
     # test's diagnostics, which need a login that actually succeeds.
-    echo 'liveuser:live' | chpasswd 2>/dev/null || true
-    echo "Live user ready: liveuser / live (documented live password)" | tee -a "$LOG"
+    # Set the hash directly with openssl + usermod. `chpasswd` goes through PAM,
+    # where pam_pwquality can reject a short password — and because that failure
+    # is easy to swallow, the account silently keeps an empty password that PAM
+    # then refuses at login. Writing the hash bypasses PAM entirely.
+    LIVE_PASS='kaal-live'
+    LIVE_HASH=$(openssl passwd -6 "$LIVE_PASS")
+    usermod -p "$LIVE_HASH" liveuser
+    echo "Live user ready: liveuser / ${LIVE_PASS} (documented live password)" | tee -a "$LOG"
 else
     echo "WARNING: liveuser does not exist — the live session cannot work" | tee -a "$LOG"
 fi
@@ -785,6 +791,69 @@ case "${DEFAULT_TARGET}" in
     *graphical.target) ;;
     *) echo "ERROR: default target is not graphical.target — the image would boot to a text console" | tee -a "$LOG"; exit 1 ;;
 esac
+
+# 10c. Prove the stored hash really is the documented password. Without this the
+#      build can ship a password that does not work, and nobody finds out until
+#      somebody tries to log in.
+STORED_HASH=$(awk -F: '$1=="liveuser"{print $2}' /etc/shadow)
+STORED_SALT=$(printf '%s' "$STORED_HASH" | cut -d'$' -f3)
+WANT_HASH=$(openssl passwd -6 -salt "$STORED_SALT" "$LIVE_PASS")
+if [ "$STORED_HASH" != "$WANT_HASH" ]; then
+    echo "ERROR: liveuser's stored hash does not match the documented live password" | tee -a "$LOG"
+    exit 1
+fi
+echo "liveuser hash verified against the documented password" | tee -a "$LOG"
+
+# 10d. Boot report: a live image that cannot explain its own failure is
+#      untestable. This unit stays silent when the desktop came up, and prints
+#      why it did not when it did not — so a screenshot alone can answer the
+#      question, with no login required.
+cat > /usr/libexec/kaal-boot-report << 'BREPORT'
+#!/bin/sh
+# Prints to tty1 ONLY when the graphical session did not come up.
+exec >/dev/tty1 2>&1
+if [ "$(systemctl is-active graphical.target 2>/dev/null)" = "active" ]; then
+    exit 0
+fi
+# graphical.target may still be starting (a first live boot also builds the
+# NVIDIA akmod), so give it a couple of minutes before speaking up.
+sleep 120
+if [ "$(systemctl is-active graphical.target 2>/dev/null)" = "active" ]; then
+    exit 0
+fi
+echo ""
+echo "==============================================================="
+echo " KAAL OS boot report: the graphical session did not start"
+echo "==============================================================="
+echo "graphical.target : $(systemctl is-active graphical.target 2>&1)"
+echo "default target   : $(readlink -f /etc/systemd/system/default.target 2>&1)"
+echo "display-manager  : $(readlink -f /etc/systemd/system/display-manager.service 2>&1)"
+for dm in sddm gdm lightdm; do
+    printf '%-16s : enabled=%s active=%s\n' "$dm" "$(systemctl is-enabled "$dm" 2>&1)" "$(systemctl is-active "$dm" 2>&1)"
+done
+echo ""
+echo "--- failed units ---"
+systemctl --failed --no-pager 2>&1
+echo ""
+echo "--- display-manager status (tail) ---"
+systemctl status display-manager --no-pager -l 2>&1 | tail -20
+echo "==============================================================="
+BREPORT
+chmod +x /usr/libexec/kaal-boot-report
+
+cat > /etc/systemd/system/kaal-boot-report.service << 'BUNIT'
+[Unit]
+Description=KAAL OS boot report (speaks only when the desktop did not come up)
+After=multi-user.target graphical.target
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/kaal-boot-report
+[Install]
+WantedBy=multi-user.target
+BUNIT
+
+systemctl enable kaal-boot-report.service 2>/dev/null || true
+echo "boot report unit installed" | tee -a "$LOG"
 
 echo "KAAL OS First boot setup complete!" | tee -a "$LOG"
 FBSCRIPT

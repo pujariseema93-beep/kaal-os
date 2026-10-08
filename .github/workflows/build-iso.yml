@@ -436,7 +436,7 @@ jobs:
           python3 scripts/ci-boot-screenshot.py \
             --monitor boottest/mon.sock --outdir boottest \
             --interval 180 --count 16 --press-enter-first --diagnose \
-            --login-user liveuser --login-pass live || true
+            --login-user liveuser --login-pass kaal-live || true
 
           kill "$(cat boottest/qemu.pid)" 2>/dev/null || true
           echo "--- boot test output ---"

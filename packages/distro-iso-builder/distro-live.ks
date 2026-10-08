@@ -746,8 +746,12 @@ echo "NetworkManager configured" | tee -a "$LOG"
 #     Clearing the password (exactly what the minimal kickstart does, where
 #     login is proven to work) gives liveuser an empty password.
 if id liveuser >/dev/null 2>&1; then
-    passwd -d liveuser 2>/dev/null || true
-    echo "Live user ready: liveuser, empty password, unlocked" | tee -a "$LOG"
+    # An EMPTY password is refused by PAM on this image ("Login incorrect"), so
+    # give the live user a known, documented password instead. The desktop
+    # autologins, so this only matters for the text console and for the boot
+    # test's diagnostics, which need a login that actually succeeds.
+    echo 'liveuser:live' | chpasswd 2>/dev/null || true
+    echo "Live user ready: liveuser / live (documented live password)" | tee -a "$LOG"
 else
     echo "WARNING: liveuser does not exist — the live session cannot work" | tee -a "$LOG"
 fi
@@ -759,8 +763,8 @@ fi
 if id liveuser >/dev/null 2>&1; then
     LIVEUSER_STATE=$(passwd -S liveuser 2>/dev/null | awk '{print $2}')
     echo "liveuser password state: ${LIVEUSER_STATE} (NP = no password, L = locked)" | tee -a "$LOG"
-    if [ "${LIVEUSER_STATE}" = "L" ]; then
-        echo "ERROR: liveuser is locked — console login and display-manager autologin cannot work" | tee -a "$LOG"
+    if [ "${LIVEUSER_STATE}" != "PS" ]; then
+        echo "ERROR: liveuser has no usable password (state ${LIVEUSER_STATE}). A locked OR empty password is refused by PAM, so console login and the boot test's diagnostics cannot work." | tee -a "$LOG"
         exit 1
     fi
 else

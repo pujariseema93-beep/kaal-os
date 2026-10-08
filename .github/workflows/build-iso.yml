@@ -22,6 +22,12 @@
 
 name: Build ISO
 
+# One build per ref: a new push cancels the previous run instead of both
+# competing for a runner and a disk.
+concurrency:
+  group: build-iso-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
     inputs:
@@ -429,7 +435,8 @@ jobs:
           # not come up, never *why*.
           python3 scripts/ci-boot-screenshot.py \
             --monitor boottest/mon.sock --outdir boottest \
-            --interval 180 --count 16 --press-enter-first --diagnose || true
+            --interval 180 --count 16 --press-enter-first --diagnose \
+            --login-user liveuser --login-pass live || true
 
           kill "$(cat boottest/qemu.pid)" 2>/dev/null || true
           echo "--- boot test output ---"

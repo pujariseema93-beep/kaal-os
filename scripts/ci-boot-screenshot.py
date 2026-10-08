@@ -109,7 +109,11 @@ def main():
     ap.add_argument("--count", type=int, default=16)
     ap.add_argument("--press-enter-first", action="store_true")
     ap.add_argument("--diagnose", action="store_true",
-                    help="log in as liveuser and screenshot diagnostic command output")
+                    help="log in and screenshot diagnostic command output")
+    ap.add_argument("--login-user", default="liveuser",
+                    help="live user to log in as (distro-live.ks sets this user's password)")
+    ap.add_argument("--login-pass", default="live",
+                    help="that user's password (distro-live.ks: liveuser / live)")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -138,13 +142,13 @@ def main():
 
     if args.diagnose:
         print("\n=== diagnostics: logging in as liveuser and asking the guest ===")
-        type_text(mon, "liveuser\n")
+        type_text(mon, f"{args.login_user}\n")
         time.sleep(6)
-        # liveuser has an empty password, so the password prompt only needs Enter.
-        # Without this the diagnostic commands get typed as the password and the
+        # The live image sets a known password (see distro-live.ks). Without it
+        # the diagnostic commands get typed into the password prompt and the
         # login fails with "Login incorrect".
-        type_text(mon, "\n")
-        time.sleep(4)
+        type_text(mon, f"{args.login_pass}\n")
+        time.sleep(5)
         shot(mon, args.outdir, "diag_login")
         for name, cmd in DIAGNOSTICS:
             print(f"  typing: {cmd}")

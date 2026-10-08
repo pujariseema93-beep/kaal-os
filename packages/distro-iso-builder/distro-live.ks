@@ -810,50 +810,52 @@ echo "liveuser hash verified against the documented password" | tee -a "$LOG"
 #      question, with no login required.
 cat > /usr/libexec/kaal-boot-report << 'BREPORT'
 #!/bin/sh
-# Prints to tty1 ONLY when the graphical session did not come up.
+# Prints a SHORT report to tty1, only when the graphical session did not come
+# up. Kept under ~20 lines so it still fits on the console above the login
+# prompt, where a screenshot can read it. No login required.
+if [ "$(systemctl is-active graphical.target 2>/dev/null)" = "active" ]; then
+    exit 0
+fi
 exec >/dev/tty1 2>&1
-if [ "$(systemctl is-active graphical.target 2>/dev/null)" = "active" ]; then
-    exit 0
-fi
-# graphical.target may still be starting (a first live boot also builds the
-# NVIDIA akmod), so give it a couple of minutes before speaking up.
-sleep 120
-if [ "$(systemctl is-active graphical.target 2>/dev/null)" = "active" ]; then
-    exit 0
-fi
-echo ""
-echo "==============================================================="
-echo " KAAL OS boot report: the graphical session did not start"
-echo "==============================================================="
+echo "===== KAAL BOOT REPORT: no graphical session ====="
 echo "graphical.target : $(systemctl is-active graphical.target 2>&1)"
 echo "default target   : $(readlink -f /etc/systemd/system/default.target 2>&1)"
 echo "display-manager  : $(readlink -f /etc/systemd/system/display-manager.service 2>&1)"
 for dm in sddm gdm lightdm; do
-    printf '%-16s : enabled=%s active=%s\n' "$dm" "$(systemctl is-enabled "$dm" 2>&1)" "$(systemctl is-active "$dm" 2>&1)"
+    printf '%-14s : enabled=%s active=%s\n' "$dm" "$(systemctl is-enabled "$dm" 2>&1)" "$(systemctl is-active "$dm" 2>&1)"
 done
-echo ""
-echo "--- failed units ---"
-systemctl --failed --no-pager 2>&1
-echo ""
-echo "--- display-manager status (tail) ---"
-systemctl status display-manager --no-pager -l 2>&1 | tail -20
-echo "==============================================================="
+echo "liveuser shadow  : $(passwd -S liveuser 2>&1)"
+echo "liveuser hash    : $(awk -F: '$1=="liveuser"{print substr($2,1,3)}' /etc/shadow 2>&1)..."
+echo "-- failed units --"
+systemctl --failed --no-pager 2>&1 | head -8
+echo "-- display-manager tail --"
+systemctl status display-manager --no-pager -l 2>&1 | tail -8
+echo "=================================================="
 BREPORT
 chmod +x /usr/libexec/kaal-boot-report
 
 cat > /etc/systemd/system/kaal-boot-report.service << 'BUNIT'
 [Unit]
 Description=KAAL OS boot report (speaks only when the desktop did not come up)
-After=multi-user.target graphical.target
+# Deliberately NOT After=graphical.target: if that target never becomes active
+# the unit would wait forever, which is exactly when the report is needed.
+After=multi-user.target
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/kaal-boot-report
-[Install]
-WantedBy=multi-user.target
 BUNIT
 
-systemctl enable kaal-boot-report.service 2>/dev/null || true
-echo "boot report unit installed" | tee -a "$LOG"
+cat > /etc/systemd/system/kaal-boot-report.timer << 'BTIMER'
+[Unit]
+Description=Run the KAAL boot report six minutes after boot
+[Timer]
+OnBootSec=6min
+[Install]
+WantedBy=timers.target
+BTIMER
+
+systemctl enable kaal-boot-report.timer 2>/dev/null || true
+echo "boot report timer installed" | tee -a "$LOG"
 
 echo "KAAL OS First boot setup complete!" | tee -a "$LOG"
 FBSCRIPT

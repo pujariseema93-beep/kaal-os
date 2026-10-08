@@ -123,6 +123,7 @@ jobs:
                 --releasever "${RELEASEVER}" \
                 --make-iso \
                 --iso-only \
+                --extra-boot-args "console=tty0 console=ttyS0,115200" \
                 --compression gzip \
                 2>&1 | tee /workspace/build.log
               LMC_RC=${PIPESTATUS[0]}
@@ -229,6 +230,7 @@ jobs:
                 --volid "KAAL_OS_LIVE" \
                 --make-iso \
                 --iso-only \
+                --extra-boot-args "console=tty0 console=ttyS0,115200" \
                 --compression ${{ inputs.compression || 'xz' }} \
                 2>&1 | tee /workspace/build.log
               LMC_RC=${PIPESTATUS[0]}

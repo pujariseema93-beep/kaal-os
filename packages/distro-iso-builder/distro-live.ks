@@ -111,6 +111,14 @@ repo --name=rpmfusion-nonfree --baseurl=https://download1.rpmfusion.org/nonfree/
 kernel
 kernel-modules
 kernel-modules-extra
+kernel-devel          # REQUIRED to build akmods at image time. Without it the
+                      # NVIDIA module can only be built at first boot, where
+                      # akmods.service blocks graphical.target and no desktop
+                      # ever appears.
+akmods                # the akmod build tool (pulled in by akmod-nvidia, listed
+                      # explicitly so the build-time pre-build cannot depend on it
+                      # arriving as a transitive dep)
+elfutils-libelf-devel # required to link kernel modules
 akmod-nvidia          # NVIDIA driver (built for current kernel)
 # REMOVED (dep audit): akmod-nvidia-open — conflicts with akmod-nvidia; keep one
 
@@ -471,14 +479,32 @@ DNFEOF
 # ==== Enable RPM Fusion repos ====
 dnf config-manager --set-enabled rpmfusion-free rpmfusion-free-updates rpmfusion-nonfree rpmfusion-nonfree-updates 2>/dev/null || true
 
-# ==== Install NVIDIA driver (if NVIDIA GPU detected) ====
-# During live image build, we include the akmod packages which will be
-# compiled on first boot. For the live image, we pre-build them.
-if lspci | grep -qi 'NVIDIA'; then
-    echo "NVIDIA GPU detected — pre-building driver modules..."
-    akmods --force 2>/dev/null || true
-    # Enable nvidia-persistenced
-    systemctl enable nvidia-persistenced 2>/dev/null || true
+# ==== Pre-build the akmod for the image's kernel ====
+# The akmod must be built HERE, for the kernel the ISO ships. The previous
+# version never did, for two compounding reasons: it was guarded on `lspci`
+# finding an NVIDIA GPU, which the build container never has, and kernel-devel
+# was not installed, so the build could not have run even if reached. The
+# result was an image whose NVIDIA module was only ever built at first boot —
+# where akmods.service blocked the boot for the whole test window and no
+# graphical session ever started.
+echo "Pre-building akmods for installed kernels..." | tee -a "$LOG"
+akmods --force 2>&1 | tee -a "$LOG" || echo "WARNING: akmods --force returned non-zero" | tee -a "$LOG"
+systemctl enable nvidia-persistenced 2>/dev/null || true
+
+# Verify the module really exists. A silent failure here costs a 48-minute boot
+# test that ends at a text login with no explanation.
+KMOD_FOUND=0
+for kdir in /lib/modules/*/; do
+    kver=$(basename "$kdir")
+    if find "/lib/modules/${kver}" -name 'nvidia*.ko*' 2>/dev/null | grep -q .; then
+        echo "nvidia kmod present for ${kver}" | tee -a "$LOG"
+        KMOD_FOUND=1
+    fi
+done
+if [ "${KMOD_FOUND}" = "0" ]; then
+    echo "ERROR: no nvidia kmod was built for any installed kernel. The live session" | tee -a "$LOG"
+    echo "       would have to compile it at boot, which blocks graphical.target." | tee -a "$LOG"
+    exit 1
 fi
 
 # ==== Configure Flatpak ====

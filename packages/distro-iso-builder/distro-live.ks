@@ -883,6 +883,61 @@ BTIMER
 systemctl enable kaal-boot-report.timer 2>/dev/null || true
 echo "boot report timer installed" | tee -a "$LOG"
 
+# 10e. Early boot diagnostic. The boot-report timer above only fires if
+#      timers.target is reached — and when the boot is stuck, it never is. This
+#      unit is pulled in by getty.target, which demonstrably does start (the
+#      login prompt is on screen), so it runs even in a boot that never
+#      finishes. It writes to the serial console AND tty1, so the boot test's
+#      serial.log and its screenshots both capture it.
+cat > /usr/libexec/kaal-boot-diag << 'BDIAG'
+#!/bin/sh
+# Answers the only question that matters when a live boot hangs: what is
+# systemd still waiting for?
+dump() {
+    {
+        echo ""
+        echo "===== KAAL EARLY DIAGNOSTIC ($1) ====="
+        echo "-- default target --"
+        systemctl get-default 2>&1
+        echo "-- pending jobs (what systemd is still waiting on) --"
+        systemctl list-jobs --no-pager 2>&1
+        echo "-- failed units --"
+        systemctl --failed --no-pager 2>&1
+        echo "-- active targets --"
+        systemctl list-units --type=target --state=active --no-pager 2>&1 | head -20
+        echo "-- display manager --"
+        echo "graphical.target active=$(systemctl is-active graphical.target 2>&1)"
+        echo "sddm enabled=$(systemctl is-enabled sddm 2>&1) active=$(systemctl is-active sddm 2>&1)"
+        echo "-- busiest processes --"
+        ps -eo pid,stat,etime,pcpu,comm --sort=-pcpu 2>/dev/null | head -12
+        echo "===== END EARLY DIAGNOSTIC ($1) ====="
+    } | tee /dev/ttyS0 /dev/tty1 2>/dev/null
+}
+dump "t+5s"
+sleep 180
+dump "t+3min"
+BDIAG
+chmod +x /usr/libexec/kaal-boot-diag
+
+cat > /etc/systemd/system/kaal-boot-diag.service << 'BDUNIT'
+[Unit]
+Description=KAAL OS early boot diagnostic (serial + tty1)
+# DefaultDependencies=no so no implicit ordering can stop it from running.
+# WantedBy getty.target because getty.target is reached even when the rest of
+# the boot is not — which is exactly the case this exists for.
+DefaultDependencies=no
+After=systemd-journald.service
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/kaal-boot-diag
+TimeoutStartSec=600
+[Install]
+WantedBy=multi-user.target getty.target
+BDUNIT
+
+systemctl enable kaal-boot-diag.service 2>/dev/null || true
+echo "early boot diagnostic installed" | tee -a "$LOG"
+
 echo "KAAL OS First boot setup complete!" | tee -a "$LOG"
 FBSCRIPT
 

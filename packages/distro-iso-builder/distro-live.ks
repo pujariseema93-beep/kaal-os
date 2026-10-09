@@ -830,58 +830,6 @@ if [ "$STORED_HASH" != "$WANT_HASH" ]; then
 fi
 echo "liveuser hash verified against the documented password" | tee -a "$LOG"
 
-# 10d. Boot report: a live image that cannot explain its own failure is
-#      untestable. This unit stays silent when the desktop came up, and prints
-#      why it did not when it did not — so a screenshot alone can answer the
-#      question, with no login required.
-cat > /usr/libexec/kaal-boot-report << 'BREPORT'
-#!/bin/sh
-# Prints a SHORT report to tty1, only when the graphical session did not come
-# up. Kept under ~20 lines so it still fits on the console above the login
-# prompt, where a screenshot can read it. No login required.
-if [ "$(systemctl is-active graphical.target 2>/dev/null)" = "active" ]; then
-    exit 0
-fi
-exec >/dev/tty1 2>&1
-echo "===== KAAL BOOT REPORT: no graphical session ====="
-echo "graphical.target : $(systemctl is-active graphical.target 2>&1)"
-echo "default target   : $(readlink -f /etc/systemd/system/default.target 2>&1)"
-echo "display-manager  : $(readlink -f /etc/systemd/system/display-manager.service 2>&1)"
-for dm in sddm gdm lightdm; do
-    printf '%-14s : enabled=%s active=%s\n' "$dm" "$(systemctl is-enabled "$dm" 2>&1)" "$(systemctl is-active "$dm" 2>&1)"
-done
-echo "liveuser shadow  : $(passwd -S liveuser 2>&1)"
-echo "liveuser hash    : $(awk -F: '$1=="liveuser"{print substr($2,1,3)}' /etc/shadow 2>&1)..."
-echo "-- failed units --"
-systemctl --failed --no-pager 2>&1 | head -8
-echo "-- display-manager tail --"
-systemctl status display-manager --no-pager -l 2>&1 | tail -8
-echo "=================================================="
-BREPORT
-chmod +x /usr/libexec/kaal-boot-report
-
-cat > /etc/systemd/system/kaal-boot-report.service << 'BUNIT'
-[Unit]
-Description=KAAL OS boot report (speaks only when the desktop did not come up)
-# Deliberately NOT After=graphical.target: if that target never becomes active
-# the unit would wait forever, which is exactly when the report is needed.
-After=multi-user.target
-[Service]
-Type=oneshot
-ExecStart=/usr/libexec/kaal-boot-report
-BUNIT
-
-cat > /etc/systemd/system/kaal-boot-report.timer << 'BTIMER'
-[Unit]
-Description=Run the KAAL boot report six minutes after boot
-[Timer]
-OnBootSec=6min
-[Install]
-WantedBy=timers.target
-BTIMER
-
-systemctl enable kaal-boot-report.timer 2>/dev/null || true
-echo "boot report timer installed" | tee -a "$LOG"
 
 # 10e. Early boot diagnostic. The boot-report timer above only fires if
 #      timers.target is reached — and when the boot is stuck, it never is. This
@@ -911,7 +859,7 @@ dump() {
         echo "-- busiest processes --"
         ps -eo pid,stat,etime,pcpu,comm --sort=-pcpu 2>/dev/null | head -12
         echo "===== END EARLY DIAGNOSTIC ($1) ====="
-    } | tee /dev/ttyS0 /dev/tty1 2>/dev/null
+    } | tee /dev/console /dev/ttyS0 /dev/tty1 2>/dev/null
 }
 dump "t+5s"
 sleep 180
@@ -923,16 +871,23 @@ cat > /etc/systemd/system/kaal-boot-diag.service << 'BDUNIT'
 [Unit]
 Description=KAAL OS early boot diagnostic (serial + tty1)
 # DefaultDependencies=no so no implicit ordering can stop it from running.
-# WantedBy getty.target because getty.target is reached even when the rest of
-# the boot is not — which is exactly the case this exists for.
+#
+# WantedBy basic.target, NOT multi-user.target or getty.target: the serial log
+# shows sysinit.target and basic.target are both reached, while multi-user.target
+# and getty.target never are. Hooking a diagnostic to a target that the failing
+# boot never reaches is how the previous two attempts managed to run nothing at
+# all — the timer fired but its service was ordered After=multi-user.target.
 DefaultDependencies=no
 After=systemd-journald.service
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/kaal-boot-diag
-TimeoutStartSec=600
+# Backgrounded so the 3-minute wait does not delay the boot; KillMode=none so
+# systemd does not kill it when the unit itself finishes.
+ExecStart=/bin/sh -c '/usr/libexec/kaal-boot-diag >/dev/null 2>&1 &'
+KillMode=none
+TimeoutStartSec=60
 [Install]
-WantedBy=multi-user.target getty.target
+WantedBy=basic.target
 BDUNIT
 
 systemctl enable kaal-boot-diag.service 2>/dev/null || true

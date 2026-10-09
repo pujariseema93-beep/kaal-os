@@ -766,132 +766,6 @@ echo "Plymouth theme will be set up later (Phase 5)" | tee -a "$LOG"
 # 9. Configure NetworkManager to auto-connect
 echo "NetworkManager configured" | tee -a "$LOG"
 
-# 10. Make the live user actually usable.
-#     The kickstart's `user --password=""` leaves the account LOCKED, so nobody
-#     can log in at the console and the display manager cannot autologin either.
-#     Clearing the password (exactly what the minimal kickstart does, where
-#     login is proven to work) gives liveuser an empty password.
-if id liveuser >/dev/null 2>&1; then
-    # An EMPTY password is refused by PAM on this image ("Login incorrect"), so
-    # give the live user a known, documented password instead. The desktop
-    # autologins, so this only matters for the text console and for the boot
-    # test's diagnostics, which need a login that actually succeeds.
-    # Set the hash directly with openssl + usermod. `chpasswd` goes through PAM,
-    # where pam_pwquality can reject a short password — and because that failure
-    # is easy to swallow, the account silently keeps an empty password that PAM
-    # then refuses at login. Writing the hash bypasses PAM entirely.
-    LIVE_PASS='kaal-live'
-    LIVE_HASH=$(openssl passwd -6 "$LIVE_PASS")
-    usermod -p "$LIVE_HASH" liveuser
-    echo "Live user ready: liveuser / ${LIVE_PASS} (documented live password)" | tee -a "$LOG"
-else
-    echo "WARNING: liveuser does not exist — the live session cannot work" | tee -a "$LOG"
-fi
-
-# 10b. Build-time guard: refuse to produce an image that cannot reach a desktop.
-#      All three of these were silent bugs that only showed up at boot, so check
-#      them here where the build can fail loudly instead. The %post is
-#      --erroronfail, so any `exit 1` below stops the build.
-if id liveuser >/dev/null 2>&1; then
-    LIVEUSER_STATE=$(passwd -S liveuser 2>/dev/null | awk '{print $2}')
-    echo "liveuser password state: ${LIVEUSER_STATE} (NP = no password, L = locked)" | tee -a "$LOG"
-    if [ "${LIVEUSER_STATE}" != "PS" ]; then
-        echo "ERROR: liveuser has no usable password (state ${LIVEUSER_STATE}). A locked OR empty password is refused by PAM, so console login and the boot test's diagnostics cannot work." | tee -a "$LOG"
-        exit 1
-    fi
-else
-    echo "ERROR: liveuser does not exist — the live image has no user to log in as" | tee -a "$LOG"
-    exit 1
-fi
-
-if systemctl is-enabled sddm >/dev/null 2>&1 || systemctl is-enabled gdm >/dev/null 2>&1; then
-    echo "display manager: enabled" | tee -a "$LOG"
-else
-    echo "ERROR: no display manager is enabled — the graphical session cannot start" | tee -a "$LOG"
-    exit 1
-fi
-
-DEFAULT_TARGET=$(readlink -f /etc/systemd/system/default.target 2>/dev/null)
-echo "default systemd target: ${DEFAULT_TARGET}" | tee -a "$LOG"
-case "${DEFAULT_TARGET}" in
-    *graphical.target) ;;
-    *) echo "ERROR: default target is not graphical.target — the image would boot to a text console" | tee -a "$LOG"; exit 1 ;;
-esac
-
-# 10c. Prove the stored hash really is the documented password. Without this the
-#      build can ship a password that does not work, and nobody finds out until
-#      somebody tries to log in.
-STORED_HASH=$(awk -F: '$1=="liveuser"{print $2}' /etc/shadow)
-STORED_SALT=$(printf '%s' "$STORED_HASH" | cut -d'$' -f3)
-WANT_HASH=$(openssl passwd -6 -salt "$STORED_SALT" "$LIVE_PASS")
-if [ "$STORED_HASH" != "$WANT_HASH" ]; then
-    echo "ERROR: liveuser's stored hash does not match the documented live password" | tee -a "$LOG"
-    exit 1
-fi
-echo "liveuser hash verified against the documented password" | tee -a "$LOG"
-
-
-# 10e. Early boot diagnostic. The boot-report timer above only fires if
-#      timers.target is reached — and when the boot is stuck, it never is. This
-#      unit is pulled in by getty.target, which demonstrably does start (the
-#      login prompt is on screen), so it runs even in a boot that never
-#      finishes. It writes to the serial console AND tty1, so the boot test's
-#      serial.log and its screenshots both capture it.
-cat > /usr/libexec/kaal-boot-diag << 'BDIAG'
-#!/bin/sh
-# Answers the only question that matters when a live boot hangs: what is
-# systemd still waiting for?
-dump() {
-    {
-        echo ""
-        echo "===== KAAL EARLY DIAGNOSTIC ($1) ====="
-        echo "-- default target --"
-        systemctl get-default 2>&1
-        echo "-- pending jobs (what systemd is still waiting on) --"
-        systemctl list-jobs --no-pager 2>&1
-        echo "-- failed units --"
-        systemctl --failed --no-pager 2>&1
-        echo "-- active targets --"
-        systemctl list-units --type=target --state=active --no-pager 2>&1 | head -20
-        echo "-- display manager --"
-        echo "graphical.target active=$(systemctl is-active graphical.target 2>&1)"
-        echo "sddm enabled=$(systemctl is-enabled sddm 2>&1) active=$(systemctl is-active sddm 2>&1)"
-        echo "-- busiest processes --"
-        ps -eo pid,stat,etime,pcpu,comm --sort=-pcpu 2>/dev/null | head -12
-        echo "===== END EARLY DIAGNOSTIC ($1) ====="
-    } | tee /dev/console /dev/ttyS0 /dev/tty1 2>/dev/null
-}
-dump "t+5s"
-sleep 180
-dump "t+3min"
-BDIAG
-chmod +x /usr/libexec/kaal-boot-diag
-
-cat > /etc/systemd/system/kaal-boot-diag.service << 'BDUNIT'
-[Unit]
-Description=KAAL OS early boot diagnostic (serial + tty1)
-# DefaultDependencies=no so no implicit ordering can stop it from running.
-#
-# WantedBy basic.target, NOT multi-user.target or getty.target: the serial log
-# shows sysinit.target and basic.target are both reached, while multi-user.target
-# and getty.target never are. Hooking a diagnostic to a target that the failing
-# boot never reaches is how the previous two attempts managed to run nothing at
-# all — the timer fired but its service was ordered After=multi-user.target.
-DefaultDependencies=no
-After=systemd-journald.service
-[Service]
-Type=oneshot
-# Backgrounded so the 3-minute wait does not delay the boot; KillMode=none so
-# systemd does not kill it when the unit itself finishes.
-ExecStart=/bin/sh -c '/usr/libexec/kaal-boot-diag >/dev/null 2>&1 &'
-KillMode=none
-TimeoutStartSec=60
-[Install]
-WantedBy=basic.target
-BDUNIT
-
-systemctl enable kaal-boot-diag.service 2>/dev/null || true
-echo "early boot diagnostic installed" | tee -a "$LOG"
 
 echo "KAAL OS First boot setup complete!" | tee -a "$LOG"
 FBSCRIPT
@@ -1051,6 +925,142 @@ fi
 restorecon -R /etc /usr 2>/dev/null || fixfiles onboot || true
 
 echo "KAAL OS kickstart post-install complete" | tee -a /root/distro-install.log
+
+# ============================================================================
+# These blocks MUST sit outside every heredoc above. They previously sat
+# INSIDE the 'FBSCRIPT' heredoc — the distro-first-boot script — so they
+# were never executed as build commands at all: the live password was never
+# set and the diagnostic units were never installed. That is why console
+# login failed on every image and why three diagnostics produced nothing.
+# Kept here, at the end of the %post, after all heredocs are closed.
+# ============================================================================
+# 10. Make the live user actually usable.
+#     The kickstart's `user --password=""` leaves the account LOCKED, so nobody
+#     can log in at the console and the display manager cannot autologin either.
+#     Clearing the password (exactly what the minimal kickstart does, where
+#     login is proven to work) gives liveuser an empty password.
+if id liveuser >/dev/null 2>&1; then
+    # An EMPTY password is refused by PAM on this image ("Login incorrect"), so
+    # give the live user a known, documented password instead. The desktop
+    # autologins, so this only matters for the text console and for the boot
+    # test's diagnostics, which need a login that actually succeeds.
+    # Set the hash directly with openssl + usermod. `chpasswd` goes through PAM,
+    # where pam_pwquality can reject a short password — and because that failure
+    # is easy to swallow, the account silently keeps an empty password that PAM
+    # then refuses at login. Writing the hash bypasses PAM entirely.
+    LIVE_PASS='kaal-live'
+    LIVE_HASH=$(openssl passwd -6 "$LIVE_PASS")
+    usermod -p "$LIVE_HASH" liveuser
+    echo "Live user ready: liveuser / ${LIVE_PASS} (documented live password)" | tee -a "$LOG"
+else
+    echo "WARNING: liveuser does not exist — the live session cannot work" | tee -a "$LOG"
+fi
+
+# 10b. Build-time guard: refuse to produce an image that cannot reach a desktop.
+#      All three of these were silent bugs that only showed up at boot, so check
+#      them here where the build can fail loudly instead. The %post is
+#      --erroronfail, so any `exit 1` below stops the build.
+if id liveuser >/dev/null 2>&1; then
+    LIVEUSER_STATE=$(passwd -S liveuser 2>/dev/null | awk '{print $2}')
+    echo "liveuser password state: ${LIVEUSER_STATE} (NP = no password, L = locked)" | tee -a "$LOG"
+    if [ "${LIVEUSER_STATE}" != "PS" ]; then
+        echo "ERROR: liveuser has no usable password (state ${LIVEUSER_STATE}). A locked OR empty password is refused by PAM, so console login and the boot test's diagnostics cannot work." | tee -a "$LOG"
+        exit 1
+    fi
+else
+    echo "ERROR: liveuser does not exist — the live image has no user to log in as" | tee -a "$LOG"
+    exit 1
+fi
+
+if systemctl is-enabled sddm >/dev/null 2>&1 || systemctl is-enabled gdm >/dev/null 2>&1; then
+    echo "display manager: enabled" | tee -a "$LOG"
+else
+    echo "ERROR: no display manager is enabled — the graphical session cannot start" | tee -a "$LOG"
+    exit 1
+fi
+
+DEFAULT_TARGET=$(readlink -f /etc/systemd/system/default.target 2>/dev/null)
+echo "default systemd target: ${DEFAULT_TARGET}" | tee -a "$LOG"
+case "${DEFAULT_TARGET}" in
+    *graphical.target) ;;
+    *) echo "ERROR: default target is not graphical.target — the image would boot to a text console" | tee -a "$LOG"; exit 1 ;;
+esac
+
+# 10c. Prove the stored hash really is the documented password. Without this the
+#      build can ship a password that does not work, and nobody finds out until
+#      somebody tries to log in.
+STORED_HASH=$(awk -F: '$1=="liveuser"{print $2}' /etc/shadow)
+STORED_SALT=$(printf '%s' "$STORED_HASH" | cut -d'$' -f3)
+WANT_HASH=$(openssl passwd -6 -salt "$STORED_SALT" "$LIVE_PASS")
+if [ "$STORED_HASH" != "$WANT_HASH" ]; then
+    echo "ERROR: liveuser's stored hash does not match the documented live password" | tee -a "$LOG"
+    exit 1
+fi
+echo "liveuser hash verified against the documented password" | tee -a "$LOG"
+
+
+# 10e. Early boot diagnostic. The boot-report timer above only fires if
+#      timers.target is reached — and when the boot is stuck, it never is. This
+#      unit is pulled in by getty.target, which demonstrably does start (the
+#      login prompt is on screen), so it runs even in a boot that never
+#      finishes. It writes to the serial console AND tty1, so the boot test's
+#      serial.log and its screenshots both capture it.
+cat > /usr/libexec/kaal-boot-diag << 'BDIAG'
+#!/bin/sh
+# Answers the only question that matters when a live boot hangs: what is
+# systemd still waiting for?
+dump() {
+    {
+        echo ""
+        echo "===== KAAL EARLY DIAGNOSTIC ($1) ====="
+        echo "-- default target --"
+        systemctl get-default 2>&1
+        echo "-- pending jobs (what systemd is still waiting on) --"
+        systemctl list-jobs --no-pager 2>&1
+        echo "-- failed units --"
+        systemctl --failed --no-pager 2>&1
+        echo "-- active targets --"
+        systemctl list-units --type=target --state=active --no-pager 2>&1 | head -20
+        echo "-- display manager --"
+        echo "graphical.target active=$(systemctl is-active graphical.target 2>&1)"
+        echo "sddm enabled=$(systemctl is-enabled sddm 2>&1) active=$(systemctl is-active sddm 2>&1)"
+        echo "-- busiest processes --"
+        ps -eo pid,stat,etime,pcpu,comm --sort=-pcpu 2>/dev/null | head -12
+        echo "===== END EARLY DIAGNOSTIC ($1) ====="
+    } | tee /dev/console /dev/ttyS0 /dev/tty1 2>/dev/null
+}
+dump "t+5s"
+sleep 180
+dump "t+3min"
+BDIAG
+chmod +x /usr/libexec/kaal-boot-diag
+
+cat > /etc/systemd/system/kaal-boot-diag.service << 'BDUNIT'
+[Unit]
+Description=KAAL OS early boot diagnostic (serial + tty1)
+# DefaultDependencies=no so no implicit ordering can stop it from running.
+#
+# WantedBy basic.target, NOT multi-user.target or getty.target: the serial log
+# shows sysinit.target and basic.target are both reached, while multi-user.target
+# and getty.target never are. Hooking a diagnostic to a target that the failing
+# boot never reaches is how the previous two attempts managed to run nothing at
+# all — the timer fired but its service was ordered After=multi-user.target.
+DefaultDependencies=no
+After=systemd-journald.service
+[Service]
+Type=oneshot
+# Backgrounded so the 3-minute wait does not delay the boot; KillMode=none so
+# systemd does not kill it when the unit itself finishes.
+ExecStart=/bin/sh -c '/usr/libexec/kaal-boot-diag >/dev/null 2>&1 &'
+KillMode=none
+TimeoutStartSec=60
+[Install]
+WantedBy=basic.target
+BDUNIT
+
+systemctl enable kaal-boot-diag.service 2>/dev/null || true
+echo "early boot diagnostic installed" | tee -a "$LOG"
+
 %end
 
 # =============================================================================

@@ -94,7 +94,11 @@ jobs:
             # Longer timeouts + more retries: Fedora mirrors occasionally stall.
             printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
 
-            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev
+            # policycoreutils provides /usr/sbin/load_policy, which anaconda's exit
+            # handler calls because the kickstart sets `selinux --enforcing`. It is
+            # in the installroot's package list but NOT in this container, so the
+            # install completed and then failed at the very last step.
+            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev policycoreutils libselinux-utils
 
             # anaconda needs udev — not present in a plain container.
             # Without it, storage probing hangs forever.
@@ -187,7 +191,11 @@ jobs:
             # Longer timeouts + more retries: Fedora mirrors occasionally stall.
             printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
 
-            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev
+            # policycoreutils provides /usr/sbin/load_policy, which anaconda's exit
+            # handler calls because the kickstart sets `selinux --enforcing`. It is
+            # in the installroot's package list but NOT in this container, so the
+            # install completed and then failed at the very last step.
+            dnf install -y lorax livemedia-creator pykickstart xorriso isomd5sum anaconda-tui systemd-udev policycoreutils libselinux-utils
 
             # anaconda needs udev — not present in a plain container.
             /usr/lib/systemd/systemd-udevd --daemon || true

@@ -962,15 +962,15 @@ fi
 #      chicken-and-egg is why no image has ever reached a desktop.
 if [ -x /usr/bin/sddm ]; then
     echo "Enabling SDDM..." | tee -a "$LOG"
-    systemctl enable sddm 2>/dev/null || true
+    systemctl enable sddm 2>&1 | tee -a "$LOG" || echo "  (enable sddm returned $?)" | tee -a "$LOG"
 elif [ -x /usr/bin/gdm ]; then
     echo "Enabling GDM..." | tee -a "$LOG"
-    systemctl enable gdm 2>/dev/null || true
+    systemctl enable gdm 2>&1 | tee -a "$LOG" || echo "  (enable gdm returned $?)" | tee -a "$LOG"
 else
     echo "ERROR: neither sddm nor gdm is installed — no graphical session is possible." | tee -a "$LOG"
     exit 1
 fi
-systemctl set-default graphical.target 2>/dev/null || true
+systemctl set-default graphical.target 2>&1 | tee -a "$LOG" || true
 echo "display manager enabled; default target = $(systemctl get-default 2>/dev/null)" | tee -a "$LOG"
 
 # 10b. Build-time guard: refuse to produce an image that cannot reach a desktop.
@@ -998,7 +998,16 @@ fi
 if systemctl is-enabled sddm >/dev/null 2>&1 || systemctl is-enabled gdm >/dev/null 2>&1; then
     echo "display manager: enabled" | tee -a "$LOG"
 else
+    # Report the cause, not just the symptom. Guessing at this from outside has
+    # cost whole build cycles; the next failure should name the reason.
     echo "ERROR: no display manager is enabled — the graphical session cannot start" | tee -a "$LOG"
+    for dm in sddm gdm lightdm; do
+        echo "  $dm: binary=$([ -x /usr/bin/$dm ] && echo yes || echo no)" \
+             "unit=$([ -f /usr/lib/systemd/system/$dm.service ] && echo present || echo MISSING)" \
+             "is-enabled=$(systemctl is-enabled $dm 2>&1)" | tee -a "$LOG"
+    done
+    echo "  rpm: $(rpm -q sddm gdm 2>&1 | tr '\n' ' ')" | tee -a "$LOG"
+    echo "  /etc/systemd/system/display-manager.service -> $(readlink /etc/systemd/system/display-manager.service 2>&1)" | tee -a "$LOG"
     exit 1
 fi
 

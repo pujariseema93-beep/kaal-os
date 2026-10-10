@@ -963,10 +963,16 @@ fi
 if id liveuser >/dev/null 2>&1; then
     LIVEUSER_STATE=$(passwd -S liveuser 2>/dev/null | awk '{print $2}')
     echo "liveuser password state: ${LIVEUSER_STATE} (NP = no password, L = locked)" | tee -a "$LOG"
-    if [ "${LIVEUSER_STATE}" != "PS" ]; then
-        echo "ERROR: liveuser has no usable password (state ${LIVEUSER_STATE}). A locked OR empty password is refused by PAM, so console login and the boot test's diagnostics cannot work." | tee -a "$LOG"
-        exit 1
-    fi
+    # `passwd -S` prints P for a usable password, L for locked, NP for none.
+    # (It is not "PS" — assuming that made this guard reject a perfectly good
+    # password and fail the build.)
+    case "${LIVEUSER_STATE}" in
+        P|PS) ;;
+        *)
+            echo "ERROR: liveuser has no usable password (state ${LIVEUSER_STATE}). A locked OR empty password is refused by PAM, so console login and the boot test's diagnostics cannot work." | tee -a "$LOG"
+            exit 1
+            ;;
+    esac
 else
     echo "ERROR: liveuser does not exist — the live image has no user to log in as" | tee -a "$LOG"
     exit 1

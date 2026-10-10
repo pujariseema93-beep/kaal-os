@@ -960,18 +960,27 @@ fi
 #      TIME. Both were only ever done inside the first-boot script — which can
 #      never run, because the boot it is meant to fix never completes. That
 #      chicken-and-egg is why no image has ever reached a desktop.
-if [ -x /usr/bin/sddm ]; then
+# On Fedora 44 the KDE desktop group installs plasmalogin, which already claims
+# the display-manager.service alias. Enabling sddm then fails with "File
+# /etc/systemd/system/display-manager.service already exists and is a symlink to
+# plasmalogin.service". What matters is that the ALIAS points at a real unit,
+# not which unit it is.
+DM_LINK=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)
+if [ -n "${DM_LINK}" ] && [ -e "${DM_LINK}" ]; then
+    echo "display manager already configured: ${DM_LINK}" | tee -a "$LOG"
+elif [ -x /usr/bin/sddm ]; then
     echo "Enabling SDDM..." | tee -a "$LOG"
     systemctl enable sddm 2>&1 | tee -a "$LOG" || echo "  (enable sddm returned $?)" | tee -a "$LOG"
 elif [ -x /usr/bin/gdm ]; then
     echo "Enabling GDM..." | tee -a "$LOG"
     systemctl enable gdm 2>&1 | tee -a "$LOG" || echo "  (enable gdm returned $?)" | tee -a "$LOG"
 else
-    echo "ERROR: neither sddm nor gdm is installed — no graphical session is possible." | tee -a "$LOG"
+    echo "ERROR: no display manager is installed — no graphical session is possible." | tee -a "$LOG"
     exit 1
 fi
 systemctl set-default graphical.target 2>&1 | tee -a "$LOG" || true
-echo "display manager enabled; default target = $(systemctl get-default 2>/dev/null)" | tee -a "$LOG"
+echo "display manager -> $(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" | tee -a "$LOG"
+echo "default target = $(systemctl get-default 2>/dev/null)" | tee -a "$LOG"
 
 # 10b. Build-time guard: refuse to produce an image that cannot reach a desktop.
 #      All three of these were silent bugs that only showed up at boot, so check
@@ -995,7 +1004,14 @@ else
     exit 1
 fi
 
-if systemctl is-enabled sddm >/dev/null 2>&1 || systemctl is-enabled gdm >/dev/null 2>&1; then
+DM_LINK=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)
+if [ -n "${DM_LINK}" ] && [ -e "${DM_LINK}" ]; then
+    # Checking only sddm/gdm gave a false negative: plasmalogin holds the alias
+    # on Fedora 44, so neither reads as "enabled" even though the image has a
+    # working display manager.
+    echo "display manager: enabled (${DM_LINK})" | tee -a "$LOG"
+elif systemctl is-enabled sddm >/dev/null 2>&1 || systemctl is-enabled gdm >/dev/null 2>&1; then
+    echo "display manager: enabled" | tee -a "$LOG"
     echo "display manager: enabled" | tee -a "$LOG"
 else
     # Report the cause, not just the symptom. Guessing at this from outside has

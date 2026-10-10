@@ -956,6 +956,23 @@ else
     echo "WARNING: liveuser does not exist — the live session cannot work" | tee -a "$LOG"
 fi
 
+# 10a. Enable a display manager and set the graphical default target AT BUILD
+#      TIME. Both were only ever done inside the first-boot script — which can
+#      never run, because the boot it is meant to fix never completes. That
+#      chicken-and-egg is why no image has ever reached a desktop.
+if [ -x /usr/bin/sddm ]; then
+    echo "Enabling SDDM..." | tee -a "$LOG"
+    systemctl enable sddm 2>/dev/null || true
+elif [ -x /usr/bin/gdm ]; then
+    echo "Enabling GDM..." | tee -a "$LOG"
+    systemctl enable gdm 2>/dev/null || true
+else
+    echo "ERROR: neither sddm nor gdm is installed — no graphical session is possible." | tee -a "$LOG"
+    exit 1
+fi
+systemctl set-default graphical.target 2>/dev/null || true
+echo "display manager enabled; default target = $(systemctl get-default 2>/dev/null)" | tee -a "$LOG"
+
 # 10b. Build-time guard: refuse to produce an image that cannot reach a desktop.
 #      All three of these were silent bugs that only showed up at boot, so check
 #      them here where the build can fail loudly instead. The %post is

@@ -975,33 +975,34 @@ fi
 # /etc/systemd/system/display-manager.service already exists and is a symlink to
 # plasmalogin.service". What matters is that the ALIAS points at a real unit,
 # not which unit it is.
-DM_LINK=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)
-if [ -n "${DM_LINK}" ] && [ -e "${DM_LINK}" ]; then
-    echo "display manager already configured: ${DM_LINK}" | tee -a "$LOG"
-elif [ -x /usr/bin/sddm ]; then
-    echo "Enabling SDDM..." | tee -a "$LOG"
+# Fedora 44's KDE group installs plasmalogin, which takes the display-manager
+# alias. The boot test showed it crashing — systemd-coredump running twice at
+# t+3min, plasma-login-wayland pegged at 60% CPU, and a black screen with only a
+# cursor. It also ignores the AccountsService session preference, so the session
+# kept coming up as Plasma.
+#
+# Use SDDM instead, with autologin straight into the Cinnamon session, so the
+# greeter never has to render at all.
+systemctl disable plasmalogin 2>&1 | tee -a "$LOG" || true
+rm -f /etc/systemd/system/display-manager.service
+if [ -x /usr/bin/sddm ]; then
+    mkdir -p /etc/sddm.conf.d
+    cat > /etc/sddm.conf.d/kaal-autologin.conf << 'SDDMAUTO'
+[Autologin]
+User=liveuser
+Session=cinnamon
+Relogin=false
+SDDMAUTO
     systemctl enable sddm 2>&1 | tee -a "$LOG" || echo "  (enable sddm returned $?)" | tee -a "$LOG"
+    echo "display manager: sddm, autologin to cinnamon" | tee -a "$LOG"
 elif [ -x /usr/bin/gdm ]; then
-    echo "Enabling GDM..." | tee -a "$LOG"
-    systemctl enable gdm 2>&1 | tee -a "$LOG" || echo "  (enable gdm returned $?)" | tee -a "$LOG"
+    systemctl enable gdm 2>&1 | tee -a "$LOG" || true
+    echo "display manager: gdm" | tee -a "$LOG"
 else
     echo "ERROR: no display manager is installed — no graphical session is possible." | tee -a "$LOG"
     exit 1
 fi
 systemctl set-default graphical.target 2>&1 | tee -a "$LOG" || true
-
-# Default the live session to Cinnamon. It is a lighter, X11-based desktop and it
-# renders without GPU acceleration, which KWin's Wayland compositor does not in a
-# headless VM. Plasma and the other desktops stay installed and selectable; this
-# only sets which one the live session comes up in.
-mkdir -p /var/lib/AccountsService/users
-cat > /var/lib/AccountsService/users/liveuser << 'ASEOF'
-[User]
-Session=cinnamon
-XSession=cinnamon
-SystemAccount=false
-ASEOF
-echo "live default session set to cinnamon" | tee -a "$LOG"
 echo "display manager -> $(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" | tee -a "$LOG"
 echo "default target = $(systemctl get-default 2>/dev/null)" | tee -a "$LOG"
 
@@ -1100,6 +1101,8 @@ dump() {
         for p in Xorg Xwayland kwin_wayland cinnamon mutter plasmalogin; do
             echo "  $p pid=$(pgrep -x "$p" 2>/dev/null | head -1)"
         done
+        echo "-- recent crashes --"
+        coredumpctl list --no-pager 2>&1 | tail -5
         echo "-- sessions --"
         loginctl list-sessions --no-pager 2>&1 | head -6
         echo "-- busiest processes --"

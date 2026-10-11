@@ -989,6 +989,19 @@ else
     exit 1
 fi
 systemctl set-default graphical.target 2>&1 | tee -a "$LOG" || true
+
+# Default the live session to Cinnamon. It is a lighter, X11-based desktop and it
+# renders without GPU acceleration, which KWin's Wayland compositor does not in a
+# headless VM. Plasma and the other desktops stay installed and selectable; this
+# only sets which one the live session comes up in.
+mkdir -p /var/lib/AccountsService/users
+cat > /var/lib/AccountsService/users/liveuser << 'ASEOF'
+[User]
+Session=cinnamon
+XSession=cinnamon
+SystemAccount=false
+ASEOF
+echo "live default session set to cinnamon" | tee -a "$LOG"
 echo "display manager -> $(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" | tee -a "$LOG"
 echo "default target = $(systemctl get-default 2>/dev/null)" | tee -a "$LOG"
 
@@ -1082,6 +1095,13 @@ dump() {
         echo "-- display manager --"
         echo "graphical.target active=$(systemctl is-active graphical.target 2>&1)"
         echo "sddm enabled=$(systemctl is-enabled sddm 2>&1) active=$(systemctl is-active sddm 2>&1)"
+        echo "-- graphics stack --"
+        echo "/dev/dri: $(ls /dev/dri 2>&1 | tr '\n' ' ')"
+        for p in Xorg Xwayland kwin_wayland cinnamon mutter plasmalogin; do
+            echo "  $p pid=$(pgrep -x "$p" 2>/dev/null | head -1)"
+        done
+        echo "-- sessions --"
+        loginctl list-sessions --no-pager 2>&1 | head -6
         echo "-- busiest processes --"
         ps -eo pid,stat,etime,pcpu,comm --sort=-pcpu 2>/dev/null | head -12
         echo "===== END EARLY DIAGNOSTIC ($1) ====="

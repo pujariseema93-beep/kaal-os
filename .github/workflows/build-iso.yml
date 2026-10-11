@@ -424,12 +424,14 @@ jobs:
 
           # -display none keeps the framebuffer alive while opening no window,
           # so the monitor's screendump can still capture it.
+          # virtio-gpu gives the guest a real DRM device; -vga std (bochs) does not,
+          # which is why KWin's Wayland compositor had nothing to render onto.
           qemu-system-x86_64 \
             -machine q35,accel=tcg -cpu max -smp 4 -m 4096 \
             -drive if=pflash,format=raw,readonly=on,file="$CODE" \
             -drive if=pflash,format=raw,file=boottest/OVMF_VARS.fd \
             -cdrom "$ISO" -boot d \
-            -vga std -display none \
+            -vga virtio -display none \
             -serial file:boottest/serial.log \
             -monitor unix:boottest/mon.sock,server,nowait &
           echo $! > boottest/qemu.pid

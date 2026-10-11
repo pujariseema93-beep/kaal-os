@@ -453,6 +453,16 @@ NetworkManager-openconnect-gnome  # auth dialogs
 # -----------------------------------------------------------------------------
 %post --erroronfail --log=/root/distro-install.log
 
+# The `--log=` directive above tells anaconda where to save this script's output.
+# It does NOT define a shell variable, and $LOG was only ever assigned inside the
+# FBSCRIPT heredoc (i.e. in the first-boot script, not here). So in this script
+# $LOG was empty and all 47 `tee -a "$LOG"` calls failed with
+# "tee: '': No such file or directory". The last line of the script is a tee, so
+# the script's exit status was 1 — which anaconda reported as ScriptError: 1 and
+# treated as a failed install, *after* the install had actually succeeded.
+LOG=/root/distro-install.log
+export LOG
+
 # ==== Set hostname ====
 echo "kaal-live" > /etc/hostname
 
@@ -1115,6 +1125,8 @@ echo "early boot diagnostic installed" | tee -a "$LOG"
 # %post --nochroot — Copy files from build host into the image
 # =============================================================================
 %post --nochroot --erroronfail
+LOG=/root/distro-install.log
+export LOG
 
 # This runs on the build host, not inside the chroot.
 # $LIVE_ROOT is the live image filesystem root.

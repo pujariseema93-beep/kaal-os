@@ -849,7 +849,7 @@ cat > /usr/share/distro/info.json << 'INFOEOF'
     "base_version": "44",
     "build_date": "BUILD_DATE_PLACEHOLDER",
     "profiles": ["gaming", "developer", "power-user", "daily", "minimal"],
-    "desktop_environments": ["kde", "gnome", "hyprland", "sway", "xfce", "cinnamon"],
+    "desktop_environments": ["kde", "gnome", "sway", "xfce", "cinnamon"],
     "bootloaders": ["grub2", "systemd-boot"],
     "features": ["auto-update-on-boot", "btrfs-snapshots", "gpu-autodetect", "flatpak-first"]
 }

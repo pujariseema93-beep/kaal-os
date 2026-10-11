@@ -1,8 +1,10 @@
 # KAAL OS
 
-A Fedora 44 based Linux distribution for gamers, developers and power users, built around **Kaal Spaces** — a runtime profile engine that reshapes the whole system around what you're doing, not the other way around.
+A Fedora 44 based Linux distribution built around one idea: **an OS you can shape.** KAAL OS treats its own configuration as the product, so the system can be reshaped into whatever a given situation needs — through **Kaal Spaces**, a runtime profile engine that reconfigures the whole system around what you're doing, not the other way around.
 
-One live USB. Six desktop environments (KDE, GNOME, Hyprland, Sway, XFCE, Cinnamon). A card-style installer that asks who you are and builds the machine you asked for.
+On that foundation, KAAL OS is being designed as an OS with an **AI control plane**: one that can run a local model or call a cloud AI under rules the user writes, drive a task autonomously through to completion while making system- and app-level changes, and watch what happens with an antivirus and AI-heuristic detection layer — designed so that personal and private data is not exposed. **That part is design intent, not code yet.** See [VISION.md](VISION.md).
+
+One live USB. Five desktop environments (KDE, GNOME, XFCE, Cinnamon, Sway). A card-style installer that asks who you are and builds the machine you asked for.
 
 > **Built openly with AI.** KAAL OS is an experiment in one designer directing AI tooling (Sarvam Indus Cowork) to build and maintain a complete Linux distribution — including its CI pipeline. The commit history is the case study.
 
@@ -15,8 +17,10 @@ One live USB. Six desktop environments (KDE, GNOME, Hyprland, Sway, XFCE, Cinnam
 | Fedora 44 base (rebased from EOL Fedora 42) | ✅ Done |
 | Minimal test ISO — builds green in CI | ✅ Done (runs on every push, ~15 min) |
 | Minimal test ISO — bootable artifact | ✅ [Download](#try-the-test-iso) (GNOME + Firefox, 2.1 GB) |
-| Full live ISO (all 7 packages, 6 DEs) | 🔨 First real build in progress |
-| Validate workflow | ⚠️ 11 pre-existing lint findings (non-blocking) |
+| Full live ISO (all 7 packages, 5 DEs) | ✅ Builds green in CI; boots under UEFI to a text login. Console login and the graphical desktop are still being fixed |
+| Boot test (QEMU, UEFI) | ✅ Runs after every full build — screenshots the guest every 3 min, serial console captured to `serial.log` |
+| Validate workflow | ✅ Green |
+| AI control plane, autonomous executor, detection layer | ❌ Not started — design only, see [VISION.md](VISION.md) |
 | RPM packaging | 🚧 Packages are staged via kickstart, not built as RPMs yet |
 | License | ✅ GPLv3 |
 
@@ -63,8 +67,9 @@ push to main
     → smoke job: minimal kickstart in a Fedora 44 container
       → livemedia-creator → anaconda → squashfs → boot.iso
     → full job: stage all 7 packages → distro-live.ks → full ISO + SHA256
-  → Test ISO workflow boots the result in QEMU (planned)
-  → tag v* → Release workflow publishes the ISO
+  → boot test: the ISO is booted in QEMU under UEFI, screenshotted every 3 minutes,
+    with the serial console captured to serial.log
+  → the full job publishes the ISO as split <2 GiB release assets + SHA256SUMS
 ```
 
 Everything runs on free GitHub-hosted runners — no build hardware required.
@@ -73,12 +78,14 @@ Everything runs on free GitHub-hosted runners — no build hardware required.
 
 1. ~~Fedora 44 rebase~~ ✅
 2. ~~Minimal test ISO green~~ ✅
-3. Full live ISO green ← **you are here**
-4. Test ISO (QEMU boot gate) green
-5. First tagged release (`v0.0.1`)
+3. ~~Full live ISO builds green~~ ✅
+4. Console login + graphical desktop ← **you are here**
+5. First tagged release
 6. RPM packaging of the 7 packages
-7. Visual identity pass (GRUB/Plymouth/SDDM themes, wallpapers)
-8. Translations (starting with Hindi + Marathi)
+7. Spaces made genuinely user-authorable (documented schema, CLI, validation, rollback)
+8. AI control plane — policy store and audit log first, then the local-model backend
+9. Visual identity pass (GRUB/Plymouth themes, wallpapers)
+10. Translations (starting with Hindi + Marathi)
 
 ## Get involved
 
@@ -93,6 +100,7 @@ No contribution too small — even "it booted on my machine, here's a screenshot
 
 | What | Where |
 |------|-------|
+| Vision and architecture | `VISION.md` |
 | Full spec | `docs/Distro_Specification.html` |
 | Build the ISO | `packages/distro-iso-builder/build-iso.sh` |
 | Smoke kickstart | `packages/distro-iso-builder/distro-test-minimal.ks` |

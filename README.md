@@ -16,28 +16,50 @@ One live USB. Five desktop environments (KDE, GNOME, XFCE, Cinnamon, Sway). A ca
 |------|-------|
 | Fedora 44 base (rebased from EOL Fedora 42) | ✅ Done |
 | Minimal test ISO — builds green in CI | ✅ Done (runs on every push, ~15 min) |
-| Minimal test ISO — bootable artifact | ✅ [Download](#try-the-test-iso) (GNOME + Firefox, 2.1 GB) |
+| Minimal test ISO — bootable artifact | ✅ Actions artifact (GNOME + Firefox, 2.1 GB) |
 | Full live ISO (all 7 packages, 5 DEs) | ✅ Builds green in CI and boots under UEFI to a **working Cinnamon desktop** — verified by the screenshots the boot test captures every 3 minutes |
+| **Release `v0.0.1`** | ✅ [Download](#download-and-try-it) — four ISO parts, checksums and a one-command download script |
 | Boot test (QEMU, UEFI) | ✅ Runs after every full build — screenshots the guest every 3 min, serial console captured to `serial.log` |
 | Validate workflow | ✅ Green |
 | AI control plane, autonomous executor, detection layer | ❌ Not started — design only, see [VISION.md](VISION.md) |
 | RPM packaging | 🚧 Packages are staged via kickstart, not built as RPMs yet |
 | License | ✅ GPLv3 |
 
-The minimal test ISO proves the whole chain end to end: repositories → kickstart → anaconda install → squashfs → EFI/BIOS bootable ISO — all in GitHub Actions, no build machine needed.
+Both ISOs prove the whole chain end to end: repositories → kickstart → anaconda install → squashfs → EFI/BIOS bootable ISO — all in GitHub Actions, no build machine needed. The minimal build is the fast smoke test; the full live ISO is the one that ships.
 
 ---
 
-## Try the test ISO
+## Download and try it
 
-1. Go to the **Actions** tab → **Build ISO** → the most recent successful run → scroll down to **Artifacts** → download `kaal-minimal-test-iso` (a zip containing `boot.iso`, ~2.1 GB).
-2. Boot it in VirtualBox or QEMU:
-   ```sh
-   qemu-system-x86_64 -m 4096 -enable-kvm -cdrom boot.iso
-   ```
-3. You should land on a GNOME desktop, auto-logged in as `liveuser`. Firefox is installed. Nothing is persistent — it's a live image.
+**Full live ISO — `v0.0.1`**, the first build that boots to a desktop:
 
-This is the **minimal smoke build** (GNOME + Firefox only). The full live ISO with all profiles, all desktops and the Calamares installer is the one under construction — `distro-live.ks` + all 7 packages.
+```bash
+# Linux / macOS — downloads every part, verifies all checksums, reassembles the ISO
+curl -fsSL https://raw.githubusercontent.com/pujariseema93-beep/kaal-os/main/scripts/download-iso.sh | bash -s -- v0.0.1
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/pujariseema93-beep/kaal-os/main/scripts/download-iso.ps1 | iex
+```
+
+The ISO is ~6.9 GB and ships as four parts, each under GitHub's 2 GiB per-file limit.
+Then write it to a USB stick (16 GB recommended):
+
+- Windows: Rufus (rufus.ie) or balenaEtcher
+- Linux/macOS: `sudo dd if=KAAL_OS_*_live_x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync`
+
+It boots under UEFI to a **Cinnamon desktop** and autologins as `liveuser`. It is a live
+image — it runs from the stick and does not touch your installed system.
+
+**Honest caveats.** Console login is rough; use the graphical session. Nothing has been
+tested on real hardware — NVIDIA and AMD GPUs are unverified, and hardware reports are the
+most useful thing you can send. The AI control plane described in [VISION.md](VISION.md)
+does not exist in code.
+
+**Minimal smoke build** (~2.1 GB, GNOME + Firefox): built on every push and available as a
+workflow artifact — **Actions** tab → **Build ISO** → most recent run → **Artifacts** →
+`kaal-minimal-test-iso`. Useful for a fast "does it boot at all" check.
 
 ---
 

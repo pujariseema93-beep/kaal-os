@@ -27,8 +27,9 @@ Honesty matters more than momentum here, so this is the real state:
 - **Built:** a Fedora 44 base, a live-ISO build pipeline, a config-driven
   "spaces" engine, generated systemd targets, Btrfs/snapper snapshot support, a
   Calamares installer path, and audit rules in `kaal-security`.
-- **In progress:** the live image builds, and it boots under UEFI to a text
-  login. Console login and the graphical desktop are still being fixed.
+- **Working:** the live image builds green in CI and boots under UEFI to a
+  Cinnamon desktop — verified by the screenshots the boot test captures every
+  three minutes. Console login is the remaining rough edge.
 - **Not built yet:** the entire AI control plane, the autonomous task executor,
   and the detection layer. They are design intent — described below, not
   delivered.
@@ -291,8 +292,9 @@ for recovery, and the existing audit rules for the trail.
 generated targets · Btrfs/snapper snapshot support · Calamares installer path ·
 `kaal-security` audit rules.
 
-**In progress:** live image builds and boots under UEFI to a text login; console
-login and the graphical desktop are being fixed.
+**Working:** the live image builds green in CI and boots under UEFI to a Cinnamon
+desktop, verified by boot-test screenshots. Console login is the remaining rough
+edge.
 
 **Not started:** AI control plane · policy store · task executor · detection
 layer.

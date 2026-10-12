@@ -17,7 +17,7 @@ One live USB. Five desktop environments (KDE, GNOME, XFCE, Cinnamon, Sway). A ca
 | Fedora 44 base (rebased from EOL Fedora 42) | ✅ Done |
 | Minimal test ISO — builds green in CI | ✅ Done (runs on every push, ~15 min) |
 | Minimal test ISO — bootable artifact | ✅ [Download](#try-the-test-iso) (GNOME + Firefox, 2.1 GB) |
-| Full live ISO (all 7 packages, 5 DEs) | ✅ Builds green in CI; boots under UEFI to a text login. Console login and the graphical desktop are still being fixed |
+| Full live ISO (all 7 packages, 5 DEs) | ✅ Builds green in CI and boots under UEFI to a **working Cinnamon desktop** — verified by the screenshots the boot test captures every 3 minutes |
 | Boot test (QEMU, UEFI) | ✅ Runs after every full build — screenshots the guest every 3 min, serial console captured to `serial.log` |
 | Validate workflow | ✅ Green |
 | AI control plane, autonomous executor, detection layer | ❌ Not started — design only, see [VISION.md](VISION.md) |
@@ -79,8 +79,8 @@ Everything runs on free GitHub-hosted runners — no build hardware required.
 1. ~~Fedora 44 rebase~~ ✅
 2. ~~Minimal test ISO green~~ ✅
 3. ~~Full live ISO builds green~~ ✅
-4. Console login + graphical desktop ← **you are here**
-5. First tagged release
+4. ~~Boots to a graphical desktop~~ ✅
+5. First tagged release ← **you are here**
 6. RPM packaging of the 7 packages
 7. Spaces made genuinely user-authorable (documented schema, CLI, validation, rollback)
 8. AI control plane — policy store and audit log first, then the local-model backend

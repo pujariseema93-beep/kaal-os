@@ -51,6 +51,12 @@ KNOWN_KEYS_services="enable disable restart"
 KNOWN_KEYS_desktop="wallpaper panel_layout app_menu_filter pinned_apps show_categories hide_categories"
 KNOWN_KEYS_hooks="pre_enter post_enter pre_exit post_exit"
 
+# Keys that ship in every template and are settable in the GUI editor, but which
+# apply-space.sh never looks up. They are part of the documented schema and a
+# config using them is not wrong — but setting one changes nothing, so the honest
+# thing is to say so rather than to call the config valid and move on.
+UNREAD_KEYS="app_menu_filter show_categories hide_categories pinned_apps"
+
 # Enumerated values, taken from what apply-space.sh actually understands.
 ENUM_cpu_governor="performance powersave schedutil ondemand conservative"
 ENUM_cpu_energy_perf="performance balance_performance balance_power power"
@@ -105,6 +111,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
             local_known="KNOWN_KEYS_${section}"
             if ! has_word "$key" "${!local_known}"; then
                 warn "unknown key '${key}' in [$section] — the engine will ignore it"
+            elif has_word "$key" "$UNREAD_KEYS"; then
+                warn "[$section] ${key} is declared but not read by the engine yet — setting it has no effect"
             fi
             ;;
         environment)

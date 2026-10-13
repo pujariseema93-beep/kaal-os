@@ -278,10 +278,19 @@ The schema, in short — sections and the keys the engine reads:
 | `[space]` | `name`, `description`, `icon`, `color` |
 | `[system]` | `cpu_governor`, `cpu_energy_perf`, `gpu_power_profile`, `gpu_force_dedicated`, `audio_quantum`, `audio_rate`, `compositor_effects`, `compositor_vsync`, `network_qos`, `network_ssh`, `notifications`, `bluetooth` |
 | `[services]` | `enable`, `disable`, `restart` |
-| `[desktop]` | `wallpaper`, `panel_layout`, `app_menu_filter`, `pinned_apps`, `show_categories`, `hide_categories` |
+| `[desktop]` | `wallpaper`, `panel_layout` |
+| `[desktop]` (declared, not yet read) | `app_menu_filter`, `pinned_apps`, `show_categories`, `hide_categories` |
 | `[environment]` | any environment variable name |
 | `[hooks]` | `pre_enter`, `post_enter`, `pre_exit`, `post_exit` |
 | `[rules]` | `enabled`, `on_ac`, `on_battery`, `evening_time`, `evening_start`, `evening_end`, `cooldown_seconds`, plus app names mapped to a target space |
+
+**Two caveats the schema does not show.** First, the four keys marked *declared,
+not yet read* ship in every template and can be set in the GUI editor, but
+`apply-space.sh` never looks them up — so a space that sets them will validate
+and then quietly not do that part. Second, the per-space panel layouts
+(`panel_layout`) are implemented for GNOME (`gsettings`), KDE (`kwriteconfig5/6`)
+and Hyprland (`hyprctl`) only. **Cinnamon is not handled**, and Cinnamon is the
+default live session, so on a live image the panel layout currently does nothing.
 
 `[rules]` lives in `auto-switch.conf` — the auto-switching rules file, which is
 not a space and deliberately has no `[space]` section.

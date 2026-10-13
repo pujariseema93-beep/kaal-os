@@ -132,7 +132,11 @@ cmd_list() {
         fi
 
         echo -e "${CYAN}║${NC} ${color}${BOLD}${display_name}${NC} ${builtin_tag} ${marker}"
-        echo -e "${CYAN}║${NC}   ${GRAY}${desc:0:56}${NC}"
+        # truncate with an ellipsis rather than mid-word: "${desc:0:56}" cut
+        # "Everyday computing..." to "simpl" and read like a rendering fault
+        local desc_show="$desc"
+        [[ ${#desc} -gt 56 ]] && desc_show="${desc:0:55}…"
+        echo -e "${CYAN}║${NC}   ${GRAY}${desc_show}${NC}"
         echo -e "${CYAN}║${NC}   ${GRAY}governor=$(get_conf "$space" system cpu_governor) | audio_q=$(get_conf "$space" system audio_quantum) | name=$space${NC}"
         echo -e "${CYAN}║${NC}"
     done

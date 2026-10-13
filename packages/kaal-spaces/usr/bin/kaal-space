@@ -153,6 +153,16 @@ cmd_switch() {
         exit 1
     fi
 
+    # Refuse to apply a config the engine would misread. Unknown keys are ignored
+    # silently and out-of-range values are applied as-is, so without this the only
+    # symptom is a space that quietly does not do what it claims.
+    if [[ -x /usr/libexec/kaal-spaces/validate-space.sh ]]; then
+        if ! /usr/libexec/kaal-spaces/validate-space.sh "$target"; then
+            echo -e "${RED}Not switching to '${target}' — fix the errors above (kaal-space edit ${target}).${NC}" >&2
+            exit 1
+        fi
+    fi
+
     echo -e "${YELLOW}Switching to '${target}' space...${NC}"
 
     # Try D-Bus
@@ -211,6 +221,12 @@ cmd_info() {
     echo ""
     echo -e "${CYAN}Desktop:${NC}"
     echo -e "  Pinned:  $(get_conf "$space" desktop pinned_apps 'none')"
+}
+
+cmd_validate() {
+    local space="${1:-}"
+    [[ -z "$space" ]] && { echo "Usage: kaal-space validate <name>" >&2; exit 1; }
+    /usr/libexec/kaal-spaces/validate-space.sh "$space"
 }
 
 cmd_status() {
@@ -462,6 +478,7 @@ main() {
         switch|sw)      cmd_switch "$1" ;;
         info|i)         cmd_info "$1" ;;
         status|st)      cmd_status ;;
+        validate|check) cmd_validate "$1" ;;
         default|def)    cmd_default "$1" ;;
         create|new)     cmd_create "$@" ;;
         edit)           cmd_edit "$1" ;;
@@ -482,6 +499,7 @@ main() {
             echo "  switch <name>        Switch to a space"
             echo "  info <name>           Show space details"
             echo "  status                Show full status"
+            echo "  validate <name>       Check a space config against the schema (changes nothing)"
             echo "  default [name]       Get/set default space"
             echo ""
             echo "Custom Space Commands:"

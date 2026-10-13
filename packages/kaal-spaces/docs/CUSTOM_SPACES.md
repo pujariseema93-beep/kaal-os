@@ -242,3 +242,46 @@ gets an exact copy of your space.
     kaal-space-switcher                  # GUI switcher (dynamic discovery)
     kaal-space-editor                    # GUI editor (create/edit custom spaces)
 ```
+
+---
+
+## Validating a Space
+
+A space config that the engine cannot read fails quietly: unknown keys are never
+looked up, and a value outside the expected set is applied as-is. The symptom is
+a space that does not do what it says.
+
+`validate` checks a config against the schema the engine actually reads, and
+changes nothing:
+
+```bash
+kaal-space validate my-study
+```
+
+It reports two kinds of problem:
+
+- **errors** — things that will not work: an unknown section, a bad value, a
+  malformed line. Validation fails, and `kaal-space switch` will refuse to apply
+  the space until they are fixed.
+- **warnings** — things that will be silently ignored: an unknown key, a
+  wallpaper or hook path that does not exist, a service name that is not a
+  systemd unit.
+
+`switch` runs the same check before applying anything, so a broken space cannot
+half-apply. To see what a space will do without touching the system, use
+`kaal-space info <name>` alongside `validate`.
+
+The schema, in short — sections and the keys the engine reads:
+
+| Section | Keys |
+|---------|------|
+| `[space]` | `name`, `description`, `icon`, `color` |
+| `[system]` | `cpu_governor`, `cpu_energy_perf`, `gpu_power_profile`, `gpu_force_dedicated`, `audio_quantum`, `audio_rate`, `compositor_effects`, `compositor_vsync`, `network_qos`, `network_ssh`, `notifications`, `bluetooth` |
+| `[services]` | `enable`, `disable`, `restart` |
+| `[desktop]` | `wallpaper`, `panel_layout`, `app_menu_filter`, `pinned_apps`, `show_categories`, `hide_categories` |
+| `[environment]` | any environment variable name |
+| `[hooks]` | `pre_enter`, `post_enter`, `pre_exit`, `post_exit` |
+| `[rules]` | `enabled`, `on_ac`, `on_battery`, `evening_time`, `evening_start`, `evening_end`, `cooldown_seconds`, plus app names mapped to a target space |
+
+`[rules]` lives in `auto-switch.conf` — the auto-switching rules file, which is
+not a space and deliberately has no `[space]` section.

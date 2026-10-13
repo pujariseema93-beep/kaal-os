@@ -39,8 +39,8 @@ get_conf() {
     value=$(awk -F= -v sec="\\[$section\\]" -v key="$key" '
         $0 ~ sec { in_section=1; next }
         /^\[/ { in_section=0 }
-        in_section && $1 ~ "^\\s*" key "\\s*$" {
-            gsub(/^\s+|\s+$/, "", $2)
+        in_section && $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
             print $2
             exit
         }
@@ -336,7 +336,7 @@ apply_environment() {
         /^\[/ { in_section=0 }
         in_section && /=/ {
             gsub(/^\s+|\s+$/, "", $1)
-            gsub(/^\s+|\s+$/, "", $2)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
             printf "%s=%s\n", $1, $2
         }
     ' "$SPACE_CONF" >> "$env_file"
@@ -351,7 +351,7 @@ apply_environment() {
         /^\[/ { in_section=0 }
         in_section && /=/ {
             gsub(/^\s+|\s+$/, "", $1)
-            gsub(/^\s+|\s+$/, "", $2)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
             printf "%s=%s\n", $1, $2
         }
     ' "$SPACE_CONF" > "${envd_dir}/50-kaal-space.conf"

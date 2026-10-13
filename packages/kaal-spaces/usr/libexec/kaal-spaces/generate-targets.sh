@@ -49,8 +49,8 @@ generate_target() {
     display_name=$(awk -F= -v sec="\\[space\\]" -v key="name" '
         $0 ~ sec { in_section=1; next }
         /^\[/ { in_section=0 }
-        in_section && $1 ~ "^\\s*" key "\\s*$" {
-            gsub(/^\s+|\s+$/, "", $2)
+        in_section && $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
             print $2
             exit
         }

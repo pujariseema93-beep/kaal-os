@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=KAAL System Monitor
+Comment=Live CPU, memory, disk, temperature and service monitor
+Exec=kaal-monitor
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;
+Keywords=system;monitor;cpu;memory;disk;temperature;services;
+StartupNotify=true

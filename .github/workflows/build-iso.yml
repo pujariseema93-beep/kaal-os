@@ -208,7 +208,7 @@ jobs:
             STAGE_DIR="${STAGE_DIR:-/tmp/kaal-staging}"
             rm -rf "$STAGE_DIR"; mkdir -p "$STAGE_DIR"
             for pkg in distro-bootloader distro-iso-builder distro-calamares \
-                       distro-hardware kaal-spaces kaal-visual kaal-security; do
+                       distro-hardware kaal-spaces kaal-visual kaal-security kaal-monitor; do
               if [ -d "../$pkg" ]; then
                 cp -r "../$pkg" "$STAGE_DIR/"
                 echo "staged: $pkg"

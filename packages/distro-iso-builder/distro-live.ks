@@ -1227,6 +1227,9 @@ if [ -d "$STAGE" ]; then
         cp -r "$STAGE"/kaal-security/config \
             "$LIVE_ROOT/usr/share/kaal-security/" 2>/dev/null || true
         cp -r "$STAGE"/kaal-security/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
+        # kaal-monitor: the system monitor app
+        cp -r "$STAGE"/kaal-monitor/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
+        chmod +x "$LIVE_ROOT"/usr/bin/kaal-monitor 2>/dev/null || true
         chmod +x "$LIVE_ROOT"/usr/bin/kaal-antivirus "$LIVE_ROOT"/usr/bin/kaal-vpn \
             2>/dev/null || true
         cp "$STAGE"/kaal-security/scripts/*.sh \

@@ -1,0 +1,570 @@
+#!/usr/bin/env python3
+"""
+KAAL OS System Monitor — PyQt6 GUI
+
+A live view of what the machine is actually doing: CPU, memory, disks,
+temperatures and running services. Reads /proc and /sys directly rather than
+depending on psutil, so it needs nothing beyond PyQt6 that the image does not
+already have.
+
+Run: kaal-monitor
+     kaal-monitor --dump      # print one sample of everything and exit (no GUI)
+
+The data-collection functions at the top are deliberately pure: they take no
+arguments beyond what they read, return plain values, and never touch Qt. That
+keeps them testable on a machine with no display, which is where this was built.
+"""
+
+import os
+import re
+import subprocess
+import sys
+import time
+
+APP_NAME = "KAAL System Monitor"
+VERSION = "0.1"
+REFRESH_MS = 1000          # fast series: cpu, memory, load
+SLOW_REFRESH_MS = 5000     # slow series: disks, temperatures, services
+HISTORY = 120              # samples kept for the sparklines
+
+# ---------------------------------------------------------------------------
+# Data collection — no Qt here, so this half is testable headlessly
+# ---------------------------------------------------------------------------
+
+def _read(path, default=""):
+    try:
+        with open(path, "r") as fh:
+            return fh.read()
+    except OSError:
+        return default
+
+
+def cpu_times():
+    """Return (idle, total) jiffies from /proc/stat, or None."""
+    line = _read("/proc/stat").split("\n", 1)[0]
+    if not line.startswith("cpu "):
+        return None
+    parts = [int(x) for x in line.split()[1:]]
+    idle = parts[3] + (parts[4] if len(parts) > 4 else 0)   # idle + iowait
+    return idle, sum(parts)
+
+
+def cpu_percent(prev, cur):
+    """Percent busy between two cpu_times() samples."""
+    if not prev or not cur:
+        return 0.0
+    didle, dtotal = cur[0] - prev[0], cur[1] - prev[1]
+    if dtotal <= 0:
+        return 0.0
+    return max(0.0, min(100.0, 100.0 * (dtotal - didle) / dtotal))
+
+
+def cpu_model():
+    """Best-effort CPU name. /proc/cpuinfo lacks 'model name' in containers and
+    on some architectures, so fall back rather than reporting 'unknown'."""
+    text = _read("/proc/cpuinfo")
+    for want in ("model name", "hardware", "processor", "cpu model"):
+        for line in text.split("\n"):
+            low = line.lower()
+            if low.startswith(want) and ":" in line:
+                val = line.split(":", 1)[1].strip()
+                # 'processor : 0' is an index, not a name
+                if want == "processor" and val.isdigit():
+                    continue
+                # Some kernels (and every container) report the literal string
+                # 'unknown' here. Showing a user 'unknown' when the architecture
+                # is right there is worse than useless.
+                if val and val.lower() != "unknown":
+                    return val
+    return f"{os.uname().machine} CPU"
+
+
+def cpu_count():
+    return os.cpu_count() or 1
+
+
+def loadavg():
+    parts = _read("/proc/loadavg").split()
+    return tuple(float(p) for p in parts[:3]) if len(parts) >= 3 else (0.0, 0.0, 0.0)
+
+
+def meminfo():
+    """Return dict of kB values plus a computed used_percent."""
+    info = {}
+    for line in _read("/proc/meminfo").split("\n"):
+        if ":" not in line:
+            continue
+        k, v = line.split(":", 1)
+        m = re.search(r"(\d+)", v)
+        if m:
+            info[k.strip()] = int(m.group(1))
+    total = info.get("MemTotal", 0)
+    avail = info.get("MemAvailable", info.get("MemFree", 0))
+    info["used"] = max(0, total - avail)
+    info["used_percent"] = (100.0 * info["used"] / total) if total else 0.0
+    swap_total = info.get("SwapTotal", 0)
+    info["swap_used_percent"] = (
+        100.0 * (swap_total - info.get("SwapFree", 0)) / swap_total if swap_total else 0.0
+    )
+    return info
+
+
+def human(kb):
+    n = float(kb) * 1024
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if abs(n) < 1024.0:
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024.0
+    return f"{n:.1f} PiB"
+
+
+def uptime():
+    txt = _read("/proc/uptime").split()
+    if not txt:
+        return "unknown"
+    secs = int(float(txt[0]))
+    d, rem = divmod(secs, 86400)
+    h, rem = divmod(rem, 3600)
+    m, _ = divmod(rem, 60)
+    return (f"{d}d " if d else "") + f"{h}h {m}m"
+
+
+def disks():
+    """Real filesystems from /proc/mounts, with usage via statvfs."""
+    out, seen = [], set()
+    skip = {"proc", "sysfs", "devtmpfs", "devpts", "tmpfs", "cgroup", "cgroup2",
+            "securityfs", "debugfs", "tracefs", "pstore", "bpf", "autofs",
+            "mqueue", "hugetlbfs", "configfs", "fusectl", "efivarfs", "ramfs",
+            "binfmt_misc", "overlay"}
+    for line in _read("/proc/mounts").split("\n"):
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        dev, mount, fstype = parts[0], parts[1], parts[2]
+        if fstype in skip or mount in seen:
+            continue
+        # Container runtimes bind-mount single files (/etc/hostname,
+        # /etc/resolv.conf, /dev/termination-log). They appear in /proc/mounts
+        # with a real fstype, and reporting them as filesystems is wrong.
+        if not os.path.isdir(mount):
+            continue
+        seen.add(mount)
+        try:
+            st = os.statvfs(mount)
+        except OSError:
+            continue
+        total = st.f_blocks * st.f_frsize
+        free = st.f_bavail * st.f_frsize
+        if total <= 0:
+            continue
+        # A network or 9p mount can report a statvfs overflow; the screenshot
+        # caught one claiming 8192 PiB. No real filesystem is that big.
+        if total > (1 << 60):
+            continue
+        used = total - free
+        out.append({
+            "device": dev, "mount": mount, "fstype": fstype,
+            "total": total, "used": used, "free": free,
+            "percent": 100.0 * used / total,
+        })
+    return sorted(out, key=lambda d: d["mount"])
+
+
+def human_bytes(n):
+    n = float(n)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if abs(n) < 1024.0:
+            return f"{n:.1f} {unit}"
+        n /= 1024.0
+    return f"{n:.1f} PiB"
+
+
+def temperatures():
+    """Every readable thermal zone and hwmon sensor, in degrees C."""
+    out = []
+    for zone in sorted(os.listdir("/sys/class/thermal")) if os.path.isdir("/sys/class/thermal") else []:
+        if not zone.startswith("thermal_zone"):
+            continue
+        base = f"/sys/class/thermal/{zone}"
+        raw = _read(f"{base}/temp").strip()
+        if not raw:
+            continue
+        try:
+            val = int(raw)
+        except ValueError:
+            continue
+        if abs(val) > 1000:          # millidegrees
+            val /= 1000.0
+        label = _read(f"{base}/type").strip() or zone
+        out.append({"label": label, "celsius": val})
+    hw = "/sys/class/hwmon"
+    if os.path.isdir(hw):
+        for dev in sorted(os.listdir(hw)):
+            dpath = f"{hw}/{dev}"
+            name = _read(f"{dpath}/name").strip() or dev
+            for entry in sorted(os.listdir(dpath)) if os.path.isdir(dpath) else []:
+                if not re.match(r"^temp\d+_input$", entry):
+                    continue
+                raw = _read(f"{dpath}/{entry}").strip()
+                if not raw:
+                    continue
+                try:
+                    val = int(raw) / 1000.0
+                except ValueError:
+                    continue
+                label = _read(f"{dpath}/{entry[:-6]}_label").strip() or f"{name}/{entry[:-6]}"
+                out.append({"label": label, "celsius": val})
+    return out
+
+
+def services():
+    """systemctl --type=service, as a list of dicts. Empty if unavailable."""
+    try:
+        r = subprocess.run(
+            ["systemctl", "list-units", "--type=service", "--all", "--no-legend",
+             "--no-pager", "--plain"],
+            capture_output=True, text=True, timeout=8,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    out = []
+    for line in r.stdout.split("\n"):
+        parts = line.split(None, 4)
+        if len(parts) < 4:
+            continue
+        unit, load, active, sub = parts[0], parts[1], parts[2], parts[3]
+        desc = parts[4].strip() if len(parts) > 4 else ""
+        out.append({"unit": unit, "load": load, "active": active,
+                    "sub": sub, "description": desc})
+    return out
+
+
+def failed_services():
+    return [s for s in services() if s["active"] == "failed"]
+
+
+def sample():
+    """One full sample — used by --dump and by the tests."""
+    return {
+        "cpu_model": cpu_model(),
+        "cpu_count": cpu_count(),
+        "loadavg": loadavg(),
+        "mem": meminfo(),
+        "uptime": uptime(),
+        "disks": disks(),
+        "temps": temperatures(),
+        "failed": failed_services(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# GUI
+# ---------------------------------------------------------------------------
+
+def build_gui(dry_run=False):
+    from PyQt6.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+        QTabWidget, QTableWidget, QTableWidgetItem, QProgressBar, QHeaderView,
+        QPushButton,
+    )
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush
+
+    STYLE = """
+        QMainWindow, QWidget { background-color: #0d0d0d; color: #e0e0e0; }
+        QLabel { color: #ccc; }
+        QTabWidget::pane { border: 1px solid #2a2a2a; border-radius: 8px; }
+        QTabBar::tab {
+            background: #161616; color: #999; padding: 8px 18px;
+            border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px;
+        }
+        QTabBar::tab:selected { background: #222; color: #8b6bff; }
+        QProgressBar {
+            border: 1px solid #2a2a2a; border-radius: 6px; background: #141414;
+            text-align: center; color: #ddd; height: 18px;
+        }
+        QProgressBar::chunk { background-color: #8b6bff; border-radius: 5px; }
+        QTableWidget {
+            background: #121212; gridline-color: #242424; border: none;
+            selection-background-color: #2a2340;
+        }
+        QHeaderView::section {
+            background: #1a1a1a; color: #888; border: none; padding: 6px;
+        }
+        QPushButton {
+            background: #1c1c1c; color: #ccc; border: 1px solid #2a2a2a;
+            border-radius: 6px; padding: 6px 14px;
+        }
+        QPushButton:hover { border-color: #8b6bff; color: #fff; }
+    """
+
+    class Sparkline(QWidget):
+        """A small rolling graph — the reason this reads /proc directly."""
+        def __init__(self, colour="#8b6bff", ceiling=100.0):
+            super().__init__()
+            self.values, self.colour, self.ceiling = [], colour, ceiling
+            self.setMinimumHeight(64)
+
+        def push(self, v):
+            self.values.append(max(0.0, float(v)))
+            if len(self.values) > HISTORY:
+                self.values.pop(0)
+            self.update()
+
+        def paintEvent(self, _):
+            p = QPainter(self)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            w, h = self.width(), self.height()
+            p.fillRect(0, 0, w, h, QColor("#121212"))
+            p.setPen(QPen(QColor("#242424"), 1))
+            for i in range(1, 4):
+                y = int(h * i / 4)
+                p.drawLine(0, y, w, y)
+            if len(self.values) < 2:
+                return
+            # newest sample sits at the right edge, like every other system monitor
+            step = w / (HISTORY - 1)
+            n = len(self.values)
+            pts = [((HISTORY - n + i) * step,
+                    h - (min(v, self.ceiling) / self.ceiling) * (h - 4) - 2)
+                   for i, v in enumerate(self.values)]
+            from PyQt6.QtCore import QPointF
+            from PyQt6.QtGui import QPolygonF
+            poly = QPolygonF([QPointF(x, y) for x, y in pts])
+            p.setPen(QPen(QColor(self.colour), 2))
+            p.drawPolyline(poly)
+
+    class Monitor(QMainWindow):
+        def __init__(self):
+            super().__init__()
+            self.setWindowTitle(APP_NAME)
+            self.resize(880, 620)
+            self.setStyleSheet(STYLE)
+            self._prev_cpu = None
+            self._last_slow = 0.0
+            self._build()
+            self._fast = QTimer(self); self._fast.timeout.connect(self.tick_fast)
+            self._fast.start(REFRESH_MS)
+            self._slow = QTimer(self); self._slow.timeout.connect(self.tick_slow)
+            self._slow.start(SLOW_REFRESH_MS)
+            self.tick_fast(); self.tick_slow()
+
+        # -- layout ---------------------------------------------------------
+        def _build(self):
+            root = QWidget(); self.setCentralWidget(root)
+            outer = QVBoxLayout(root)
+
+            self.header = QLabel("…")
+            self.header.setFont(QFont("monospace", 10))
+            outer.addWidget(self.header)
+
+            self.tabs = QTabWidget()
+            outer.addWidget(self.tabs, 1)
+
+            # CPU
+            cpu = QWidget(); v = QVBoxLayout(cpu)
+            self.cpu_bar = QProgressBar(); self.cpu_bar.setRange(0, 100)
+            self.cpu_bar.setFormat("CPU %p%")
+            v.addWidget(self.cpu_bar)
+            self.cpu_spark = Sparkline("#8b6bff")
+            v.addWidget(self.cpu_spark)
+            self.cpu_info = QLabel(""); self.cpu_info.setFont(QFont("monospace", 9))
+            v.addWidget(self.cpu_info)
+            v.addStretch(1)
+            self.tabs.addTab(cpu, "CPU")
+
+            # Memory
+            mem = QWidget(); v = QVBoxLayout(mem)
+            self.mem_bar = QProgressBar(); self.mem_bar.setRange(0, 100)
+            self.mem_bar.setFormat("Memory %p%")
+            v.addWidget(self.mem_bar)
+            self.swap_bar = QProgressBar(); self.swap_bar.setRange(0, 100)
+            self.swap_bar.setFormat("Swap %p%")
+            v.addWidget(self.swap_bar)
+            self.mem_spark = Sparkline("#3ddc7c")
+            v.addWidget(self.mem_spark)
+            self.mem_info = QLabel(""); self.mem_info.setFont(QFont("monospace", 9))
+            v.addWidget(self.mem_info)
+            v.addStretch(1)
+            self.tabs.addTab(mem, "Memory")
+
+            # Disks
+            self.disk_table = QTableWidget(0, 5)
+            self.disk_table.setHorizontalHeaderLabels(
+                ["Mount", "Device", "Type", "Used", "Size"])
+            self.disk_table.horizontalHeader().setSectionResizeMode(
+                QHeaderView.ResizeMode.Stretch)
+            self.disk_table.verticalHeader().setVisible(False)
+            self.disk_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            self.tabs.addTab(self.disk_table, "Disks")
+
+            # Temperatures
+            self.temp_table = QTableWidget(0, 2)
+            self.temp_table.setHorizontalHeaderLabels(["Sensor", "Temperature"])
+            self.temp_table.horizontalHeader().setSectionResizeMode(
+                QHeaderView.ResizeMode.Stretch)
+            self.temp_table.verticalHeader().setVisible(False)
+            self.temp_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            self.tabs.addTab(self.temp_table, "Temperatures")
+
+            # Services
+            svc = QWidget(); v = QVBoxLayout(svc)
+            row = QHBoxLayout()
+            self.svc_summary = QLabel("…")
+            row.addWidget(self.svc_summary, 1)
+            self.failed_only = QPushButton("Show failed only")
+            self.failed_only.setCheckable(True)
+            self.failed_only.toggled.connect(lambda _: self.tick_slow(force=True))
+            row.addWidget(self.failed_only)
+            refresh = QPushButton("Refresh")
+            refresh.clicked.connect(lambda: self.tick_slow(force=True))
+            row.addWidget(refresh)
+            v.addLayout(row)
+            self.svc_table = QTableWidget(0, 3)
+            self.svc_table.setHorizontalHeaderLabels(["Service", "State", "Description"])
+            self.svc_table.horizontalHeader().setSectionResizeMode(
+                0, QHeaderView.ResizeMode.ResizeToContents)
+            self.svc_table.horizontalHeader().setSectionResizeMode(
+                1, QHeaderView.ResizeMode.ResizeToContents)
+            self.svc_table.horizontalHeader().setSectionResizeMode(
+                2, QHeaderView.ResizeMode.Stretch)
+            self.svc_table.verticalHeader().setVisible(False)
+            self.svc_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            v.addWidget(self.svc_table, 1)
+            self.tabs.addTab(svc, "Services")
+
+        # -- updates --------------------------------------------------------
+        def tick_fast(self):
+            cur = cpu_times()
+            pct = cpu_percent(self._prev_cpu, cur)
+            self._prev_cpu = cur
+            self.cpu_bar.setValue(int(pct))
+            self.cpu_spark.push(pct)
+            la = loadavg()
+            self.cpu_info.setText(
+                f"{cpu_model()}\n{cpu_count()} CPUs   ·   load {la[0]:.2f} {la[1]:.2f} {la[2]:.2f}"
+                f"   ·   up {uptime()}"
+            )
+            m = meminfo()
+            self.mem_bar.setValue(int(m["used_percent"]))
+            self.swap_bar.setValue(int(m["swap_used_percent"]))
+            self.mem_spark.push(m["used_percent"])
+            self.mem_info.setText(
+                f"used {human(m['used'])} of {human(m.get('MemTotal', 0))}"
+                f"   ·   available {human(m.get('MemAvailable', 0))}"
+                f"   ·   swap {human(m.get('SwapTotal', 0) - m.get('SwapFree', 0))}"
+                f" of {human(m.get('SwapTotal', 0))}"
+            )
+            self.header.setText(f"{APP_NAME} {VERSION}   ·   live")
+
+        def tick_slow(self, force=False):
+            now = time.time()
+            if not force and now - self._last_slow < SLOW_REFRESH_MS / 1000.0 - 0.2:
+                return
+            self._last_slow = now
+
+            rows = disks()
+            self.disk_table.setRowCount(len(rows))
+            for i, d in enumerate(rows):
+                cells = [d["mount"], d["device"], d["fstype"],
+                         f"{d['percent']:.0f}%  ({human_bytes(d['used'])})",
+                         human_bytes(d["total"])]
+                for j, txt in enumerate(cells):
+                    item = QTableWidgetItem(txt)
+                    if j == 3 and d["percent"] > 90:
+                        item.setForeground(QColor("#ff5d7a"))
+                    self.disk_table.setItem(i, j, item)
+
+            temps = temperatures()
+            self.temp_table.setRowCount(len(temps))
+            for i, t in enumerate(temps):
+                self.temp_table.setItem(i, 0, QTableWidgetItem(t["label"]))
+                item = QTableWidgetItem(f"{t['celsius']:.1f} °C")
+                if t["celsius"] >= 80:
+                    item.setForeground(QColor("#ff5d7a"))
+                elif t["celsius"] >= 65:
+                    item.setForeground(QColor("#ffb454"))
+                self.temp_table.setItem(i, 1, item)
+
+            svcs = services()
+            shown = [s for s in svcs if s["active"] == "failed"] if self.failed_only.isChecked() else svcs
+            running = sum(1 for s in svcs if s["active"] == "active")
+            failed = sum(1 for s in svcs if s["active"] == "failed")
+            self.svc_summary.setText(
+                f"{running} running   ·   {failed} failed   ·   {len(svcs)} total")
+            self.svc_table.setRowCount(len(shown))
+            for i, s in enumerate(shown):
+                for j, txt in enumerate([s["unit"], s["active"], s["description"]]):
+                    item = QTableWidgetItem(txt)
+                    if j == 1 and s["active"] == "failed":
+                        item.setForeground(QColor("#ff5d7a"))
+                    elif j == 1 and s["active"] == "active":
+                        item.setForeground(QColor("#3ddc7c"))
+                    self.svc_table.setItem(i, j, item)
+
+    global _WINDOW_CLASS
+    _WINDOW_CLASS = Monitor
+    _QT["QApplication"] = QApplication
+    if dry_run:
+        return None
+    app = QApplication(sys.argv)
+    win = Monitor()
+    win.show()
+    return app.exec()
+
+
+_WINDOW_CLASS = None
+_QT = {}
+
+
+def create_window():
+    """Build the window and return (app, window) without entering the event loop.
+
+    Exists so the GUI can be tested on a machine with no display
+    (QT_QPA_PLATFORM=offscreen) rather than merely being assumed to work.
+    """
+    build_gui(dry_run=True)
+    QApplication = _QT["QApplication"]
+    app = QApplication.instance() or QApplication(sys.argv)
+    win = _WINDOW_CLASS()
+    win.show()
+    return app, win
+
+
+def dump():
+    """One sample to stdout — the headless check."""
+    s = sample()
+    print(f"cpu      : {s['cpu_model']}  ({s['cpu_count']} CPUs)")
+    print(f"load     : {s['loadavg'][0]:.2f} {s['loadavg'][1]:.2f} {s['loadavg'][2]:.2f}")
+    m = s["mem"]
+    print(f"memory   : {human(m['used'])} / {human(m.get('MemTotal', 0))}  ({m['used_percent']:.0f}%)")
+    print(f"uptime   : {s['uptime']}")
+    print(f"disks    : {len(s['disks'])} real filesystems")
+    for d in s["disks"][:6]:
+        print(f"           {d['mount']:<22} {d['percent']:5.0f}%  {human_bytes(d['total'])}")
+    print(f"temps    : {len(s['temps'])} sensors")
+    for t in s["temps"][:6]:
+        print(f"           {t['label']:<22} {t['celsius']:.1f} °C")
+    print(f"services : {len(services())} units, {len(s['failed'])} failed")
+    for f in s["failed"][:6]:
+        print(f"           {f['unit']}")
+
+
+def main():
+    if "--dump" in sys.argv:
+        dump()
+        return 0
+    if "--version" in sys.argv:
+        print(f"{APP_NAME} {VERSION}")
+        return 0
+    try:
+        return build_gui()
+    except ImportError as exc:
+        print(f"{APP_NAME}: PyQt6 is not available ({exc}).", file=sys.stderr)
+        print("Install python3-pyqt6, or run 'kaal-monitor --dump' for the text view.",
+              file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

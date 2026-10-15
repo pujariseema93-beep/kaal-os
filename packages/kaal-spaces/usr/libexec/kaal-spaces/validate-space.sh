@@ -64,6 +64,14 @@ ENUM_gpu_power_profile="auto balanced performance powersave"
 ENUM_notifications="all normal dnd minimal off silent"
 BOOL_KEYS="gpu_force_dedicated compositor_effects compositor_vsync network_qos network_ssh"
 ENUM_bluetooth="on off"
+
+# SC2034 is a false positive on the tables above: they are read through indirect
+# expansion (${!name}), which the linter cannot follow. They are all used — this
+# line is the reference that says so. It is a no-op.
+: "$KNOWN_KEYS_space" "$KNOWN_KEYS_system" "$KNOWN_KEYS_services" \
+  "$KNOWN_KEYS_desktop" "$KNOWN_KEYS_hooks" "$ENUM_cpu_governor" \
+  "$ENUM_cpu_energy_perf" "$ENUM_gpu_power_profile" "$ENUM_notifications" \
+  "$ENUM_bluetooth"
 NUM_KEYS="audio_quantum audio_rate"
 
 has_word() { # has_word <needle> <space-separated haystack>

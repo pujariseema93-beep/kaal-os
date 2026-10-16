@@ -42,12 +42,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ---- Free disk space ----
+      # Stock runners have only ~14 GB free. Downloading and extracting an ISO
+      # artifact fills that up and the runner agent dies mid-write (which shows
+      # up as "the runner has received a shutdown signal"). build-iso.yml has
+      # the same step for the same reason.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup 2>/dev/null || true
+          sudo apt-get clean
+          df -h /
+
       # ---- Download ISO artifact ----
       - name: Download ISO artifact
         uses: dawidd6/action-download-artifact@v3
         with:
           run_id: ${{ github.event.workflow_run.id || inputs.artifact_run_id }}
-          name: kaal-os-live-iso
+          # Test the minimal smoke ISO: it exists specifically to verify the
+          # pipeline, and at ~2 GB it fits comfortably on a stock runner.
+          # The full kaal-os-live-iso (~7 GB) download+extract exhausted the
+          # runner's disk and killed the job before any test ran.
+          name: kaal-minimal-test-iso
           path: iso-artifact
           workflow: Build ISO
 

@@ -130,22 +130,31 @@ jobs:
           ELAPSED=0
           BOOTED=false
 
+          # Evidence the boot failed outright.
+          FAIL_PATTERNS='kernel panic|not syncing|Kernel panic|You are in emergency mode|emergency shell|Failed to mount|dracut.*timeout|Timed out waiting for device|Call Trace:'
+
+          # Evidence a live session came up. Kept deliberately broad: the live
+          # image autologins, so there is no login prompt, and different display
+          # managers print different markers.
+          BOOT_PATTERNS='login:|SDDM|GDM|LightDM|reached.*graphical|Reached target Graphical Interface|autologin|Cinnamon|liveuser'
+
           while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
             sleep 10
             ELAPSED=$((ELAPSED + 10))
             echo "  Elapsed: ${ELAPSED}s / ${TIMEOUT}s"
 
-            # Check serial log for boot progress
             if [ -f serial.log ]; then
-              # Check for kernel panic
-              if grep -qi 'kernel panic\|not syncing\|Kernel panic' serial.log; then
-                echo "::error::Kernel panic detected in serial log!"
-                tail -20 serial.log
+              # Hard failure: panic, emergency mode, dracut timeout, bad mounts
+              if grep -qiE "$FAIL_PATTERNS" serial.log; then
+                echo "::error::Boot failure detected in serial log"
+                grep -iE "$FAIL_PATTERNS" serial.log | tail -5
+                echo "=== Serial log (last 50 lines) ==="
+                tail -50 serial.log
                 exit 1
               fi
 
-              # Check for successful boot indicators
-              if grep -qi 'login:\|SDDM\|GDM\|LightDM\|reached.*graphical' serial.log; then
+              # Success: a live session appeared
+              if grep -qiE "$BOOT_PATTERNS" serial.log; then
                 echo "  Boot progress detected in serial log"
                 BOOTED=true
                 break
@@ -153,13 +162,14 @@ jobs:
             fi
           done
 
-          if [ "$BOOTED" = "false" ]; then
-            echo "::warning::System did not fully boot within $TIMEOUT seconds"
+          if [ "$BOOTED" != "true" ]; then
+            echo "::error::ISO did not reach a live session within ${TIMEOUT}s"
             echo "=== Serial log (last 50 lines) ==="
             tail -50 serial.log 2>/dev/null || echo "No serial log found"
-          else
-            echo "System appears to have booted successfully!"
+            exit 1
           fi
+
+          echo "System reached a live session."
 
       # ---- Try SSH connection ----
       - name: Test SSH connectivity
@@ -226,10 +236,10 @@ jobs:
         run: |
           echo "## ISO Boot Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f serial.log ] && grep -qi 'login:\|SDDM\|GDM\|reached.*graphical' serial.log; then
-            echo "**Boot test PASSED** — system reached login/desktop" >> $GITHUB_STEP_SUMMARY
+          if [ -f serial.log ] && grep -qiE 'login:|SDDM|GDM|LightDM|reached.*graphical|Reached target Graphical Interface|autologin|Cinnamon|liveuser' serial.log; then
+            echo "**Boot test PASSED** — system reached a live session" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Boot test INCONCLUSIVE** — check serial log for details" >> $GITHUB_STEP_SUMMARY
+            echo "**Boot test FAILED** — no live session detected; see serial log" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "See test-results artifact for full logs." >> $GITHUB_STEP_SUMMARY

@@ -7,6 +7,22 @@
 #   - Kernel loads without panic
 #   - Live desktop (or login prompt) is reached
 #   - SSH is available (for automated verification)
+#
+# Artifact download — two methods, both supported (workflow_dispatch input
+# `download_method`; automatic runs use the default):
+#
+#   gh      (default) — `gh run download`, the GitHub CLI. Streams the archive
+#                       to disk and extracts with Go's zip reader, so it has no
+#                       size ceiling. Fewer moving parts, no third-party action.
+#
+#   action            — dawidd6/action-download-artifact with skip_unpack: true,
+#                       then the system `unzip`. The action's own extractor
+#                       pushes files through a Node buffer capped at 2 GiB and
+#                       dies on our ISOs ("length is out of range ...
+#                       2287071232"); skipping its unpack and using unzip (which
+#                       handles large/zip64 archives) sidesteps that.
+#
+# Both paths land the ISO in iso-artifact/ for the steps below.
 # =============================================================================
 
 name: Test ISO
@@ -23,6 +39,14 @@ on:
         description: 'Run ID of the build to test'
         required: true
         type: string
+      download_method:
+        description: 'How to fetch the ISO artifact'
+        required: true
+        default: 'gh'
+        type: choice
+        options:
+          - gh
+          - action
 
 permissions:
   contents: read
@@ -54,17 +78,52 @@ jobs:
           df -h /
 
       # ---- Download ISO artifact ----
-      - name: Download ISO artifact
+      # Test the minimal smoke ISO: it exists specifically to verify the
+      # pipeline, and at ~2 GB it fits comfortably on a stock runner. The full
+      # kaal-os-live-iso (~7 GB) does not fit the runner's disk.
+      #
+      # Method 1 (default): GitHub CLI. No size ceiling.
+      - name: Download ISO artifact (gh CLI)
+        if: github.event_name == 'workflow_run' || inputs.download_method == 'gh'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "=== Downloading artifact with gh run download ==="
+          gh run download "${{ github.event.workflow_run.id || inputs.artifact_run_id }}" \
+            --repo "${{ github.repository }}" \
+            -n kaal-minimal-test-iso \
+            -D iso-artifact
+          ls -lh iso-artifact/
+
+      # Method 2: the action, but with its unpacking disabled — see the header.
+      - name: Download ISO artifact (action, no unpack)
+        if: github.event_name == 'workflow_dispatch' && inputs.download_method == 'action'
         uses: dawidd6/action-download-artifact@v3
         with:
           run_id: ${{ github.event.workflow_run.id || inputs.artifact_run_id }}
-          # Test the minimal smoke ISO: it exists specifically to verify the
-          # pipeline, and at ~2 GB it fits comfortably on a stock runner.
-          # The full kaal-os-live-iso (~7 GB) download+extract exhausted the
-          # runner's disk and killed the job before any test ran.
           name: kaal-minimal-test-iso
           path: iso-artifact
           workflow: Build ISO
+          skip_unpack: true
+
+      # Extract the zip ourselves when method 2 was used. System unzip handles
+      # files larger than 2 GiB, which the action's extractor cannot.
+      - name: Extract artifact zip (large-file safe)
+        if: github.event_name == 'workflow_dispatch' && inputs.download_method == 'action'
+        run: |
+          echo "=== Extracting artifact zip with system unzip ==="
+          shopt -s nullglob
+          zips=(iso-artifact/*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "::error::No zip found in iso-artifact/"
+            ls -la iso-artifact/ || true
+            exit 1
+          fi
+          for z in "${zips[@]}"; do
+            echo "extracting: $z"
+            unzip -o "$z" -d iso-artifact/
+          done
+          ls -lh iso-artifact/
 
       # ---- Find the ISO ----
       - name: Find ISO file

@@ -154,19 +154,32 @@ jobs:
           # Create a disk image for the VM (not used for install, just for boot)
           qemu-img create -f qcow2 test-disk.qcow2 5G
 
+          # UEFI needs BOTH pflash files: the read-only firmware image that ships
+          # with the ovmf package, and a WRITABLE vars store. Only the former is
+          # installed by the package — the vars file must be copied here.
+          # Without it QEMU exits immediately with
+          #   "Could not open 'OVMF_VARS.fd': No such file or directory"
+          # and, if that is swallowed, the boot check then waits five minutes on
+          # a serial log that can never appear.
+          OVMF_CODE=/usr/share/OVMF/OVMF_CODE.fd
+          cp /usr/share/OVMF/OVMF_VARS.fd ./OVMF_VARS.fd
+
           # Start QEMU in background
           # - 2GB RAM (minimum for live boot)
           # - 2 CPU cores
           # - UEFI firmware (OVMF)
           # - Serial console for log capture
           # - Port forward: host 2222 -> guest 22 (SSH)
+          #
+          # Deliberately no `|| true`: if QEMU cannot start, fail here with its
+          # own error message rather than pretending it started.
           qemu-system-x86_64 \
             -name "distro-test" \
             -machine q35,accel=tcg \
             -cpu max \
             -smp 2 \
             -m 2048 \
-            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd \
+            -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
             -drive if=pflash,format=raw,file=OVMF_VARS.fd \
             -drive file=test-disk.qcow2,if=virtio,format=qcow2 \
             -cdrom "$ISO" \
@@ -175,10 +188,16 @@ jobs:
             -device virtio-net-pci,netdev=net0 \
             -serial file:serial.log \
             -display none \
-            -daemonize \
-            || true
+            -daemonize
 
-          echo "QEMU started. Waiting for boot..."
+          # Confirm the VM is really running before waiting on it.
+          sleep 3
+          if ! pgrep -f qemu-system-x86_64 >/dev/null; then
+            echo "::error::QEMU exited immediately — the VM never started"
+            exit 1
+          fi
+
+          echo "QEMU started (pid $(pgrep -f qemu-system-x86_64 | head -1)). Waiting for boot..."
 
       # ---- Wait for boot and test ----
       - name: Wait for system boot
@@ -222,9 +241,20 @@ jobs:
           done
 
           if [ "$BOOTED" != "true" ]; then
+            # No serial output at all means the VM never ran — a different
+            # problem from "it booted but we did not recognise the output".
+            if [ ! -f serial.log ]; then
+              echo "::error::No serial.log was produced — QEMU wrote no output, so the VM likely never started"
+              if pgrep -f qemu-system-x86_64 >/dev/null; then
+                echo "note: a qemu-system-x86_64 process IS running"
+              else
+                echo "note: no qemu-system-x86_64 process is running"
+              fi
+              exit 1
+            fi
             echo "::error::ISO did not reach a live session within ${TIMEOUT}s"
             echo "=== Serial log (last 50 lines) ==="
-            tail -50 serial.log 2>/dev/null || echo "No serial log found"
+            tail -50 serial.log
             exit 1
           fi
 

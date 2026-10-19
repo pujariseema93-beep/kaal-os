@@ -23,6 +23,15 @@
 #                       handles large/zip64 archives) sidesteps that.
 #
 # Both paths land the ISO in iso-artifact/ for the steps below.
+#
+# Which ISO to boot (workflow_dispatch input `iso_artifact`; automatic runs
+# use the default):
+#
+#   minimal (default) — kaal-minimal-test-iso (~2 GB). The pipeline smoke
+#                       test: fast, and enough to prove the build boots.
+#   full              — kaal-os-live-iso (~7 GB). The real live image, with
+#                       the desktop stack. Needs more RAM, more vCPU and a
+#                       longer boot window, plus a ~7 GB download+extract.
 # =============================================================================
 
 name: Test ISO
@@ -47,6 +56,14 @@ on:
         options:
           - gh
           - action
+      iso_artifact:
+        description: 'Which ISO to boot'
+        required: true
+        default: 'minimal'
+        type: choice
+        options:
+          - minimal
+          - full
 
 permissions:
   contents: read
@@ -56,7 +73,7 @@ jobs:
   test:
     name: Boot Test in QEMU
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     if: |
       github.event.workflow_run.conclusion == 'success' ||
       github.event_name == 'workflow_dispatch'
@@ -77,10 +94,27 @@ jobs:
           sudo apt-get clean
           df -h /
 
+      # ---- Pick the ISO and the VM resources it needs ----
+      - name: Select ISO artifact and VM resources
+        id: sel
+        run: |
+          if [ "${{ inputs.iso_artifact || 'minimal' }}" = "full" ]; then
+            echo "artifact=kaal-os-live-iso" >> $GITHUB_OUTPUT
+            echo "memory=4096" >> $GITHUB_OUTPUT
+            echo "smp=4" >> $GITHUB_OUTPUT
+            echo "boot_timeout=900" >> $GITHUB_OUTPUT
+            echo "Selected: full live ISO (kaal-os-live-iso) — 4 GB RAM, 4 vCPU, 900s boot window"
+          else
+            echo "artifact=kaal-minimal-test-iso" >> $GITHUB_OUTPUT
+            echo "memory=2048" >> $GITHUB_OUTPUT
+            echo "smp=2" >> $GITHUB_OUTPUT
+            echo "boot_timeout=300" >> $GITHUB_OUTPUT
+            echo "Selected: minimal smoke ISO (kaal-minimal-test-iso) — 2 GB RAM, 2 vCPU, 300s boot window"
+          fi
+
       # ---- Download ISO artifact ----
-      # Test the minimal smoke ISO: it exists specifically to verify the
-      # pipeline, and at ~2 GB it fits comfortably on a stock runner. The full
-      # kaal-os-live-iso (~7 GB) does not fit the runner's disk.
+      # The ISO is chosen by the `iso_artifact` input (see the header): the
+      # minimal smoke ISO by default, or the full ~7 GB live ISO on request.
       #
       # Method 1 (default): GitHub CLI. No size ceiling.
       - name: Download ISO artifact (gh CLI)
@@ -91,7 +125,7 @@ jobs:
           echo "=== Downloading artifact with gh run download ==="
           gh run download "${{ github.event.workflow_run.id || inputs.artifact_run_id }}" \
             --repo "${{ github.repository }}" \
-            -n kaal-minimal-test-iso \
+            -n "${{ steps.sel.outputs.artifact }}" \
             -D iso-artifact
           ls -lh iso-artifact/
 
@@ -101,7 +135,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           run_id: ${{ github.event.workflow_run.id || inputs.artifact_run_id }}
-          name: kaal-minimal-test-iso
+          name: ${{ steps.sel.outputs.artifact }}
           path: iso-artifact
           workflow: Build ISO
           skip_unpack: true
@@ -164,9 +198,8 @@ jobs:
           OVMF_CODE=/usr/share/OVMF/OVMF_CODE.fd
           cp /usr/share/OVMF/OVMF_VARS.fd ./OVMF_VARS.fd
 
-          # Start QEMU in background
-          # - 2GB RAM (minimum for live boot)
-          # - 2 CPU cores
+          # Start QEMU in background. RAM and vCPU come from the selection step
+          # (the full live ISO needs more of both than the smoke ISO).
           # - UEFI firmware (OVMF)
           # - Serial console for log capture
           # - Port forward: host 2222 -> guest 22 (SSH)
@@ -177,8 +210,8 @@ jobs:
             -name "distro-test" \
             -machine q35,accel=tcg \
             -cpu max \
-            -smp 2 \
-            -m 2048 \
+            -smp ${{ steps.sel.outputs.smp }} \
+            -m ${{ steps.sel.outputs.memory }} \
             -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
             -drive if=pflash,format=raw,file=OVMF_VARS.fd \
             -drive file=test-disk.qcow2,if=virtio,format=qcow2 \
@@ -201,10 +234,12 @@ jobs:
 
       # ---- Wait for boot and test ----
       - name: Wait for system boot
+        env:
+          BOOT_TIMEOUT: ${{ steps.sel.outputs.boot_timeout }}
         run: |
-          echo "=== Waiting for system to boot (max 5 minutes) ==="
+          TIMEOUT="${BOOT_TIMEOUT:-300}"
+          echo "=== Waiting for system to boot (max ${TIMEOUT}s) ==="
 
-          TIMEOUT=300
           ELAPSED=0
           BOOTED=false
 

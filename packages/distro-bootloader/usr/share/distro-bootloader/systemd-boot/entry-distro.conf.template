@@ -14,7 +14,7 @@ title   KAAL OS
 
 # ---- Kernel version ----
 # This is set by the kernel-install hook on each kernel update.
-# Example: 6.11.5-300.fc42.x86_64
+# Example: 6.11.5-300.fc44.x86_64
 version __KERNEL_VERSION__
 
 # ---- Machine ID ----

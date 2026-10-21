@@ -272,7 +272,24 @@ jobs:
 
             # Verify the staged packages actually made it into the image
             echo "=== Verifying staged content in built rootfs ==="
-            ls /workspace/lmc-tmp/install_root/usr/libexec/distro-installer/ 2>/dev/null | head -30 || true
+            ROOT=/workspace/lmc-tmp/install_root
+            INSTALLER_DIR="$ROOT/usr/libexec/distro-installer"
+            ls "$INSTALLER_DIR" | head -30
+            # This check used to end in `|| true`, so an empty listing passed
+            # silently — which is exactly what happened while the kickstart was
+            # copying into $LIVE_ROOT (unset under livemedia-creator) and the
+            # staged packages were landing in the build container, not the image.
+            if [ -z "$(ls -A "$INSTALLER_DIR" 2>/dev/null)" ]; then
+              echo "::error::staged installer scripts are NOT in the built image: $INSTALLER_DIR"
+              exit 1
+            fi
+            for f in etc/calamares/settings.conf usr/share/distro/profiles; do
+              if [ ! -e "$ROOT/$f" ]; then
+                echo "::error::missing in built image: $f"
+                exit 1
+              fi
+            done
+            echo "staged content verified in the image"
 
             cp /workspace/lmc-results/*.iso /workspace/ 2>/dev/null || {
               echo "NO ISO PRODUCED — build.log tail:"; tail -80 /workspace/build.log; exit 1; }

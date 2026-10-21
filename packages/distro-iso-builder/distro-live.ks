@@ -1152,92 +1152,128 @@ LOG=/root/distro-install.log
 export LOG
 
 # This runs on the build host, not inside the chroot.
-# $LIVE_ROOT is the live image filesystem root.
+#
+# The install root variable: livemedia-creator does NOT set $INSTALL_ROOT — that
+# was livecd-creator's variable for the ISO's own root, and under lmc it is
+# simply unset. (lorax: "INSTALL_ROOT and LIVE_ROOT are not available during
+# %post".) The variable lmc/anaconda actually provides is $ANA_INSTALL_PATH;
+# /mnt/sysimage is the documented fallback. Copying into an unset $INSTALL_ROOT
+# sent every file below into the BUILD CONTAINER's filesystem instead of the
+# image — silently, because each copy ended in `|| true`.
+#
 # build-iso.sh stages all KAAL packages to /tmp/kaal-staging before running
 # livemedia-creator, so every package is copied from there — never from the
 # build machine's local paths.
 STAGE="/tmp/kaal-staging"
+INSTALL_ROOT="${ANA_INSTALL_PATH:-/mnt/sysimage}"
+echo "KAAL staging: STAGE=$STAGE INSTALL_ROOT=$INSTALL_ROOT"
+if [ ! -d "$INSTALL_ROOT" ]; then
+    echo "FATAL: install root does not exist: $INSTALL_ROOT" >&2
+    exit 1
+fi
 
 if [ -d "$STAGE" ]; then
     # ---- distro-bootloader: etc + usr trees ----
     if [ -d "$STAGE/distro-bootloader/etc" ]; then
         echo "Staging bootloader package..."
-        cp -r "$STAGE"/distro-bootloader/etc/* "$LIVE_ROOT/etc/" 2>/dev/null || true
-        cp -r "$STAGE"/distro-bootloader/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/etc/grub.d/0*-distro* 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/etc/grub.d/2*-distro* 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/usr/libexec/distro-bootloader/* 2>/dev/null || true
+        cp -r "$STAGE"/distro-bootloader/etc/* "$INSTALL_ROOT/etc/"
+        cp -r "$STAGE"/distro-bootloader/usr/* "$INSTALL_ROOT/usr/"
+        chmod +x "$INSTALL_ROOT"/etc/grub.d/0*-distro* 2>/dev/null || true
+        chmod +x "$INSTALL_ROOT"/etc/grub.d/2*-distro* 2>/dev/null || true
+        chmod +x "$INSTALL_ROOT"/usr/libexec/distro-bootloader/* 2>/dev/null || true
     fi
 
     # ---- distro-iso-builder: profile lists + post-install scripts 01-07 ----
     if [ -d "$STAGE/distro-iso-builder/profiles" ]; then
-        mkdir -p "$LIVE_ROOT/usr/share/distro/profiles"
+        mkdir -p "$INSTALL_ROOT/usr/share/distro/profiles"
         cp "$STAGE"/distro-iso-builder/profiles/*.list \
-            "$LIVE_ROOT/usr/share/distro/profiles/" 2>/dev/null || true
+            "$INSTALL_ROOT/usr/share/distro/profiles/"
     fi
     if [ -d "$STAGE/distro-iso-builder/scripts" ]; then
-        mkdir -p "$LIVE_ROOT/usr/libexec/distro-installer"
+        mkdir -p "$INSTALL_ROOT/usr/libexec/distro-installer"
         cp "$STAGE"/distro-iso-builder/scripts/*.sh \
-            "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
+            "$INSTALL_ROOT/usr/libexec/distro-installer/"
     fi
 
     # ---- distro-hardware: post-install scripts 08-16 ----
     if [ -d "$STAGE/distro-hardware/scripts" ]; then
-        mkdir -p "$LIVE_ROOT/usr/libexec/distro-installer"
+        mkdir -p "$INSTALL_ROOT/usr/libexec/distro-installer"
         cp "$STAGE"/distro-hardware/scripts/*.sh \
-            "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
+            "$INSTALL_ROOT/usr/libexec/distro-installer/"
     fi
 
     # ---- distro-calamares: modules + branding + configs ----
     if [ -d "$STAGE/distro-calamares" ]; then
-        mkdir -p "$LIVE_ROOT/etc/calamares" "$LIVE_ROOT/usr/lib/calamares"
+        mkdir -p "$INSTALL_ROOT/etc/calamares" "$INSTALL_ROOT/usr/lib/calamares"
         cp -r "$STAGE"/distro-calamares/modules/* \
-            "$LIVE_ROOT/usr/lib/calamares/modules/" 2>/dev/null || true
+            "$INSTALL_ROOT/usr/lib/calamares/modules/"
         cp -r "$STAGE"/distro-calamares/branding/* \
-            "$LIVE_ROOT/usr/lib/calamares/branding/" 2>/dev/null || true
+            "$INSTALL_ROOT/usr/lib/calamares/branding/"
         cp "$STAGE"/distro-calamares/settings.conf \
-            "$LIVE_ROOT/etc/calamares/" 2>/dev/null || true
-        mkdir -p "$LIVE_ROOT/etc/calamares/modules"
+            "$INSTALL_ROOT/etc/calamares/"
+        mkdir -p "$INSTALL_ROOT/etc/calamares/modules"
         cp "$STAGE"/distro-calamares/modules/*/*.conf \
-            "$LIVE_ROOT/etc/calamares/modules/" 2>/dev/null || true
+            "$INSTALL_ROOT/etc/calamares/modules/"
         cp "$STAGE"/distro-calamares/modules/distro-post-install.conf \
-            "$LIVE_ROOT/etc/calamares/modules/" 2>/dev/null || true
+            "$INSTALL_ROOT/etc/calamares/modules/"
     fi
 
     # ---- kaal-spaces: etc + usr trees + script 17 ----
     if [ -d "$STAGE/kaal-spaces" ]; then
-        cp -r "$STAGE"/kaal-spaces/etc/* "$LIVE_ROOT/etc/" 2>/dev/null || true
-        cp -r "$STAGE"/kaal-spaces/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
+        cp -r "$STAGE"/kaal-spaces/etc/* "$INSTALL_ROOT/etc/"
+        cp -r "$STAGE"/kaal-spaces/usr/* "$INSTALL_ROOT/usr/"
         cp "$STAGE"/kaal-spaces/scripts/17-spaces-setup.sh \
-            "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/usr/libexec/kaal-spaces/* 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/usr/libexec/kaal-spaces/panels/* 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/usr/libexec/kaal-spaces/hooks/* 2>/dev/null || true
+            "$INSTALL_ROOT/usr/libexec/distro-installer/"
+        chmod +x "$INSTALL_ROOT"/usr/libexec/kaal-spaces/* 2>/dev/null || true
+        chmod +x "$INSTALL_ROOT"/usr/libexec/kaal-spaces/panels/* 2>/dev/null || true
+        chmod +x "$INSTALL_ROOT"/usr/libexec/kaal-spaces/hooks/* 2>/dev/null || true
     fi
 
     # ---- kaal-visual: full tree (applied during ISO build chroot post) ----
     if [ -d "$STAGE/kaal-visual" ]; then
-        mkdir -p "$LIVE_ROOT/usr/share/kaal-visual"
-        cp -r "$STAGE"/kaal-visual/* "$LIVE_ROOT/usr/share/kaal-visual/" 2>/dev/null || true
+        mkdir -p "$INSTALL_ROOT/usr/share/kaal-visual"
+        cp -r "$STAGE"/kaal-visual/* "$INSTALL_ROOT/usr/share/kaal-visual/"
     fi
 
     # ---- kaal-security: config + usr trees + scripts 18-21 ----
     if [ -d "$STAGE/kaal-security" ]; then
-        mkdir -p "$LIVE_ROOT/usr/share/kaal-security"
+        mkdir -p "$INSTALL_ROOT/usr/share/kaal-security"
         cp -r "$STAGE"/kaal-security/config \
-            "$LIVE_ROOT/usr/share/kaal-security/" 2>/dev/null || true
-        cp -r "$STAGE"/kaal-security/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
+            "$INSTALL_ROOT/usr/share/kaal-security/"
+        cp -r "$STAGE"/kaal-security/usr/* "$INSTALL_ROOT/usr/"
         # kaal-monitor: the system monitor app
-        cp -r "$STAGE"/kaal-monitor/usr/* "$LIVE_ROOT/usr/" 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/usr/bin/kaal-monitor 2>/dev/null || true
-        chmod +x "$LIVE_ROOT"/usr/bin/kaal-antivirus "$LIVE_ROOT"/usr/bin/kaal-vpn \
+        cp -r "$STAGE"/kaal-monitor/usr/* "$INSTALL_ROOT/usr/"
+        chmod +x "$INSTALL_ROOT"/usr/bin/kaal-monitor 2>/dev/null || true
+        chmod +x "$INSTALL_ROOT"/usr/bin/kaal-antivirus "$INSTALL_ROOT"/usr/bin/kaal-vpn \
             2>/dev/null || true
         cp "$STAGE"/kaal-security/scripts/*.sh \
-            "$LIVE_ROOT/usr/libexec/distro-installer/" 2>/dev/null || true
+            "$INSTALL_ROOT/usr/libexec/distro-installer/"
     fi
 
     # Executable bit for all installer scripts (01-21)
-    chmod +x "$LIVE_ROOT"/usr/libexec/distro-installer/*.sh 2>/dev/null || true
+    chmod +x "$INSTALL_ROOT"/usr/libexec/distro-installer/*.sh 2>/dev/null || true
+
+    # ---- Prove it landed -------------------------------------------------
+    # Everything above used to fail silently, which is how an image shipped
+    # without its installer config and nobody noticed. Fail the build instead.
+    MISSING=0
+    for f in "$INSTALL_ROOT/etc/calamares/settings.conf" \
+             "$INSTALL_ROOT/usr/share/distro/profiles" \
+             "$INSTALL_ROOT/usr/libexec/distro-installer"; do
+        if [ ! -e "$f" ]; then
+            echo "FATAL: staged content missing in image: $f" >&2
+            MISSING=1
+        fi
+    done
+    if [ -z "$(ls -A "$INSTALL_ROOT/usr/libexec/distro-installer" 2>/dev/null)" ]; then
+        echo "FATAL: no installer scripts in $INSTALL_ROOT/usr/libexec/distro-installer" >&2
+        MISSING=1
+    fi
+    if [ "$MISSING" -ne 0 ]; then
+        echo "The staged packages did not reach the image. Check INSTALL_ROOT above." >&2
+        exit 1
+    fi
+    echo "KAAL staging: verified — installer scripts, profiles and Calamares config are in the image"
 else
     echo "WARNING: $STAGE not found — staged packages NOT copied into image!" >&2
     echo "Run ./build-iso.sh from packages/distro-iso-builder/ so it can stage them." >&2

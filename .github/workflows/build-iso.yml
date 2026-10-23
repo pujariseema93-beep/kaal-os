@@ -272,8 +272,17 @@ jobs:
 
             # Verify the staged packages actually made it into the image
             echo "=== Verifying staged content in built rootfs ==="
-            ROOT=/workspace/lmc-tmp/install_root
-            INSTALLER_DIR="$ROOT/usr/libexec/distro-installer"
+            # Do not hardcode the install root: lmc puts it under its own work
+            # directory (e.g. /workspace/lmc-tmp/lmc-work-XXXX/...), which is not
+            # /workspace/lmc-tmp/install_root. Find it instead.
+            INSTALLER_DIR=$(find /workspace/lmc-tmp -type d -name distro-installer 2>/dev/null | head -1)
+            if [ -z "$INSTALLER_DIR" ]; then
+              echo "::error::could not find usr/libexec/distro-installer anywhere under /workspace/lmc-tmp"
+              find /workspace/lmc-tmp -maxdepth 3 -type d 2>/dev/null | head -30
+              exit 1
+            fi
+            ROOT="${INSTALLER_DIR%/usr/libexec/distro-installer}"
+            echo "install root: $ROOT"
             ls "$INSTALLER_DIR" | head -30
             # This check used to end in `|| true`, so an empty listing passed
             # silently — which is exactly what happened while the kickstart was

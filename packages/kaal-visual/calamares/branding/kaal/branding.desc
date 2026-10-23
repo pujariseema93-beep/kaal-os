@@ -37,7 +37,7 @@ productName: "KAAL OS"
 productShort: "KAAL"
 version: "1.0"
 shortVersion: "1.0"
-subtitle: "Kaal Autonomous Artificial Intelligence Operating System"
+subtitle: "Kaal Autonomous Artificial Learning Operating System"
 
 # --- Colors ---
 # Colors used throughout the installer interface

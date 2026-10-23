@@ -53,7 +53,7 @@ Rectangle {
         }
 
         Text {
-            text: "Kaal Autonomous Artificial Intelligence Operating System"
+            text: "Kaal Autonomous Artificial Learning Operating System"
             font.pixelSize: 11
             color: "#666666"
             anchors.horizontalCenter: parent.horizontalCenter

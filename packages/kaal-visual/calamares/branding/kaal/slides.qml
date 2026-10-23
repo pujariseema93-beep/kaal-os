@@ -13,7 +13,7 @@ Item {
     property var slides: [
         {
             title: "Welcome to KAAL OS",
-            subtitle: "Kaal Autonomous Artificial Intelligence Operating System",
+            subtitle: "Kaal Autonomous Artificial Learning Operating System",
             description: "A Fedora-based Linux distribution designed for gamers, developers, power users, and everyday computing.",
             color: "#4A90D9"
         },

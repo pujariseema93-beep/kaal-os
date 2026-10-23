@@ -71,7 +71,7 @@ desktop-color: "#0d0d0d"
     height = 8%
     
     + label {
-        text = "KAAL OS — Kaal Autonomous Artificial Intelligence Operating System"
+        text = "KAAL OS — Kaal Autonomous Artificial Learning Operating System"
         font = "DejaVu Sans 10"
         color = "#444444"
         align = center

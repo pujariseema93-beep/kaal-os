@@ -270,18 +270,38 @@ jobs:
               exit 1
             fi
 
-            # Verify the staged packages actually made it into the image
-            echo "=== Verifying staged content in built rootfs ==="
-            # Do not hardcode the install root: lmc puts it under its own work
-            # directory (e.g. /workspace/lmc-tmp/lmc-work-XXXX/...), which is not
-            # /workspace/lmc-tmp/install_root. Find it instead.
-            INSTALLER_DIR=$(find /workspace/lmc-tmp -type d -name distro-installer 2>/dev/null | head -1)
-            if [ -z "$INSTALLER_DIR" ]; then
-              echo "::error::could not find usr/libexec/distro-installer anywhere under /workspace/lmc-tmp"
-              find /workspace/lmc-tmp -maxdepth 3 -type d 2>/dev/null | head -30
-              exit 1
+            # Verify the staged packages actually made it into the image.
+            # livemedia-creator erases its work tree — including the extracted
+            # install root — as soon as the ISO is built (its log line is
+            # "Disk image erased"), so the old find-under-/workspace/lmc-tmp
+            # check could never pass on a successful build. Inspect the live
+            # rootfs inside the built ISO instead: mount the ISO, then mount
+            # its LiveOS/squashfs.img (the same image dracut's dmsquash-live
+            # uses at boot).
+            echo "=== Verifying staged content in built ISO ==="
+            ISO=$(ls /workspace/lmc-results/*.iso 2>/dev/null | head -1)
+            if [ -z "$ISO" ]; then
+              echo "::error::no ISO produced in /workspace/lmc-results"
+              tail -80 /workspace/build.log; exit 1
             fi
-            ROOT="${INSTALLER_DIR%/usr/libexec/distro-installer}"
+            echo "built ISO: $ISO"
+            mkdir -p /mnt/kaal-iso /mnt/kaal-root
+            mount -o loop,ro "$ISO" /mnt/kaal-iso
+            SQ=$(find /mnt/kaal-iso -maxdepth 2 -name 'squashfs*.img' | head -1)
+            if [ -z "$SQ" ]; then
+              echo "::error::no squashfs image found inside $ISO"
+              find /mnt/kaal-iso -maxdepth 2 | head -40
+              umount /mnt/kaal-iso; exit 1
+            fi
+            echo "live rootfs image: $SQ"
+            mount -o loop,ro "$SQ" /mnt/kaal-root
+            ROOT=/mnt/kaal-root
+            INSTALLER_DIR="$ROOT/usr/libexec/distro-installer"
+            if [ ! -d "$INSTALLER_DIR" ]; then
+              echo "::error::usr/libexec/distro-installer is missing from the built image"
+              ls -la "$ROOT/usr/libexec" 2>/dev/null | head -30
+              umount /mnt/kaal-root /mnt/kaal-iso; exit 1
+            fi
             echo "install root: $ROOT"
             ls "$INSTALLER_DIR" | head -30
             # This check used to end in `|| true`, so an empty listing passed
@@ -290,15 +310,16 @@ jobs:
             # staged packages were landing in the build container, not the image.
             if [ -z "$(ls -A "$INSTALLER_DIR" 2>/dev/null)" ]; then
               echo "::error::staged installer scripts are NOT in the built image: $INSTALLER_DIR"
-              exit 1
+              umount /mnt/kaal-root /mnt/kaal-iso; exit 1
             fi
             for f in etc/calamares/settings.conf usr/share/distro/profiles; do
               if [ ! -e "$ROOT/$f" ]; then
                 echo "::error::missing in built image: $f"
-                exit 1
+                umount /mnt/kaal-root /mnt/kaal-iso; exit 1
               fi
             done
             echo "staged content verified in the image"
+            umount /mnt/kaal-root /mnt/kaal-iso
 
             cp /workspace/lmc-results/*.iso /workspace/ 2>/dev/null || {
               echo "NO ISO PRODUCED — build.log tail:"; tail -80 /workspace/build.log; exit 1; }

@@ -1204,9 +1204,20 @@ if [ -d "$STAGE" ]; then
 
     # ---- distro-calamares: modules + branding + configs ----
     if [ -d "$STAGE/distro-calamares" ]; then
-        mkdir -p "$INSTALL_ROOT/etc/calamares" "$INSTALL_ROOT/usr/lib/calamares"
+        # Custom modules must land where Calamares actually searches for them.
+        # modules-search "local" means $LIBDIR/calamares/modules, which on
+        # Fedora 44 is /usr/lib64/calamares/modules -- not /usr/lib. The copy
+        # below targeted /usr/lib/calamares/modules, a directory nothing ever
+        # created, so `cp` failed and the image shipped without the KAAL
+        # installer modules. Create it, and install into Calamares's real
+        # search path too so the modules load at runtime.
+        mkdir -p "$INSTALL_ROOT/etc/calamares" \
+                 "$INSTALL_ROOT/usr/lib/calamares/modules" \
+                 "$INSTALL_ROOT/usr/lib64/calamares/modules"
         cp -r "$STAGE"/distro-calamares/modules/* \
             "$INSTALL_ROOT/usr/lib/calamares/modules/"
+        cp -r "$STAGE"/distro-calamares/modules/* \
+            "$INSTALL_ROOT/usr/lib64/calamares/modules/"
         cp -r "$STAGE"/distro-calamares/branding/* \
             "$INSTALL_ROOT/usr/lib/calamares/branding/"
         cp "$STAGE"/distro-calamares/settings.conf \

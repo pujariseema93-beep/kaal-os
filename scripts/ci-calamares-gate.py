@@ -89,7 +89,11 @@ def main():
     talk(mon, "sendkey ctrl-alt-f1")
     time.sleep(10)
 
-    ppm = os.path.join(args.outdir, "first-page.ppm")
+    # QEMU is launched with -daemonize, which chdir()s the process to /
+    # (see QEMU's os_setup_post()). A relative screendump path is therefore
+    # resolved against / — where our outdir does not exist — so QEMU writes
+    # nothing and the capture silently fails. Hand it an absolute path.
+    ppm = os.path.abspath(os.path.join(args.outdir, "first-page.ppm"))
     talk(mon, "screendump %s" % ppm, wait=3)
     mon.close()
 

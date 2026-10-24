@@ -325,6 +325,8 @@ jobs:
             -boot d \
             -netdev user,id=net0,hostfwd=tcp::2222-:22 \
             -device virtio-net-pci,netdev=net0 \
+            -vga virtio \
+            -monitor unix:mon.sock,server,nowait \
             -serial file:serial.log \
             -display none \
             -daemonize
@@ -401,6 +403,20 @@ jobs:
 
           echo "System reached a live session."
 
+      # ---- INSTALLER GATE (launch half): prove Calamares actually starts ----
+      # The gate step above proves the installer is present and configured.
+      # That is not the same as Calamares running. Inject input through the
+      # QEMU monitor socket (QEMU above starts it on mon.sock): log in on a
+      # text VT — a separate console the graphical session's lock screen does
+      # not cover, which is why the old typed diagnostics came out identical —
+      # start Calamares on the graphical display, switch back and screendump
+      # its first page. Non-fatal: this is evidence, not a release blocker.
+      - name: Launch Calamares and capture its first page
+        continue-on-error: true
+        run: |
+          pip install -q pillow >/dev/null 2>&1 || true
+          python3 scripts/ci-calamares-gate.py --monitor mon.sock --outdir calamares
+
       # ---- Try SSH connection ----
       - name: Test SSH connectivity
         run: |
@@ -428,6 +444,9 @@ jobs:
 
           # Copy serial log
           cp serial.log test-results/ 2>/dev/null || true
+
+          # Copy the Calamares first-page screenshot, if the launch half ran
+          cp calamares/*.png test-results/ 2>/dev/null || true
 
           # Analyze serial log
           if [ -f serial.log ]; then

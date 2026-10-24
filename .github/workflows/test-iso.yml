@@ -182,6 +182,102 @@ jobs:
           echo "Found ISO: $ISO_FILE"
           echo "iso_path=$ISO_FILE" >> $GITHUB_OUTPUT
 
+      # ---- INSTALLER GATE: the ISO must ship a working, configured installer ----
+      # Booting proves the live session comes up; it says nothing about whether
+      # the installer is present and wired up. Mount the ISO and its live
+      # squashfs (the same image dmsquash-live boots) and check the Calamares
+      # binary, the KAAL module chain in settings.conf, the custom modules, and
+      # every post-install script the configuration invokes — present and
+      # executable. "The ISO boots" is not "the installer works".
+      - name: Verify installer present and configured (Calamares gate)
+        run: |
+          set -uo pipefail
+          ISO="${{ steps.findiso.outputs.iso_path }}"
+          echo "=== Installer gate: $ISO ==="
+
+          sudo mkdir -p /mnt/kaal-iso /mnt/kaal-root
+          if ! sudo mount -o loop,ro "$ISO" /mnt/kaal-iso; then
+            echo "::error::could not mount $ISO"; exit 1
+          fi
+          SQ=$(sudo find /mnt/kaal-iso -maxdepth 2 -name 'squashfs*.img' -print -quit)
+          if [ -z "$SQ" ]; then
+            echo "::error::no squashfs image found inside $ISO"
+            sudo umount /mnt/kaal-iso; exit 1
+          fi
+          echo "live rootfs image: $SQ"
+          if ! sudo mount -o loop,ro "$SQ" /mnt/kaal-root; then
+            echo "::error::could not mount $SQ"; sudo umount /mnt/kaal-iso; exit 1
+          fi
+          ROOT=/mnt/kaal-root
+
+          fail=0
+
+          # 1. The Calamares binary itself.
+          if sudo test -x "$ROOT/usr/bin/calamares"; then
+            echo "ok: usr/bin/calamares (executable)"
+          else
+            echo "::error::calamares binary is missing from the built image"; fail=1
+          fi
+
+          # 2. /etc/calamares/settings.conf, with the KAAL module chain.
+          SETTINGS="$ROOT/etc/calamares/settings.conf"
+          if ! sudo test -f "$SETTINGS"; then
+            echo "::error::/etc/calamares/settings.conf is missing from the built image"; fail=1
+          else
+            for m in profile-select de-select space-select bootloader-select \
+                     distro-context distro-post-install; do
+              if sudo grep -q -- "- $m" "$SETTINGS"; then
+                echo "ok: settings.conf references $m"
+              else
+                echo "::error::settings.conf does not reference the $m module"; fail=1
+              fi
+            done
+          fi
+
+          # 3. The custom Calamares modules and the shellprocess config.
+          for m in profile-select de-select space-select bootloader-select distro-context; do
+            if sudo test -f "$ROOT/usr/lib/calamares/modules/$m/module.desc"; then
+              echo "ok: custom module $m"
+            else
+              echo "::error::custom Calamares module is missing: $m"; fail=1
+            fi
+          done
+          if sudo test -f "$ROOT/etc/calamares/modules/distro-post-install.conf"; then
+            echo "ok: etc/calamares/modules/distro-post-install.conf"
+          else
+            echo "::error::distro-post-install.conf is missing from the built image"; fail=1
+          fi
+
+          # 4. Every post-install script the configuration invokes (01-21),
+          #    present and executable.
+          IDIR="$ROOT/usr/libexec/distro-installer"
+          if ! sudo test -d "$IDIR"; then
+            echo "::error::usr/libexec/distro-installer is missing from the built image"; fail=1
+          else
+            count=0
+            for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21; do
+              s=$(sudo find "$IDIR" -maxdepth 1 -name "$n-*.sh" -print -quit)
+              if [ -z "$s" ]; then
+                echo "::error::installer script $n-*.sh is missing"; fail=1; continue
+              fi
+              count=$((count + 1))
+              if sudo test -x "$s"; then
+                echo "ok: $(basename "$s") (executable)"
+              else
+                echo "::error::$(basename "$s") is not executable"; fail=1
+              fi
+            done
+            echo "installer scripts checked: $count"
+          fi
+
+          sudo umount /mnt/kaal-root /mnt/kaal-iso
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::installer gate FAILED — the ISO does not ship a present, configured installer"
+            exit 1
+          fi
+          echo "installer gate passed: Calamares binary, KAAL module chain, custom modules and all 21 post-install scripts are present and executable"
+
       # ---- Install QEMU ----
       - name: Install QEMU and OVMF
         run: |

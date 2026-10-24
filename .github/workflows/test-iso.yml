@@ -341,67 +341,23 @@ jobs:
           echo "QEMU started (pid $(pgrep -f qemu-system-x86_64 | head -1)). Waiting for boot..."
 
       # ---- Wait for boot and test ----
-      - name: Wait for system boot
+      - name: Wait for a graphical session (visual check)
         env:
           BOOT_TIMEOUT: ${{ steps.sel.outputs.boot_timeout }}
         run: |
-          TIMEOUT="${BOOT_TIMEOUT:-300}"
-          echo "=== Waiting for system to boot (max ${TIMEOUT}s) ==="
-
-          ELAPSED=0
-          BOOTED=false
-
-          # Evidence the boot failed outright.
-          FAIL_PATTERNS='kernel panic|not syncing|Kernel panic|You are in emergency mode|emergency shell|Failed to mount|dracut.*timeout|Timed out waiting for device|Call Trace:'
-
-          # Evidence a live session came up. Kept deliberately broad: the live
-          # image autologins, so there is no login prompt, and different display
-          # managers print different markers.
-          BOOT_PATTERNS='login:|SDDM|GDM|LightDM|reached.*graphical|Reached target Graphical Interface|autologin|Cinnamon|liveuser'
-
-          while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
-            sleep 10
-            ELAPSED=$((ELAPSED + 10))
-            echo "  Elapsed: ${ELAPSED}s / ${TIMEOUT}s"
-
-            if [ -f serial.log ]; then
-              # Hard failure: panic, emergency mode, dracut timeout, bad mounts
-              if grep -qiE "$FAIL_PATTERNS" serial.log; then
-                echo "::error::Boot failure detected in serial log"
-                grep -iE "$FAIL_PATTERNS" serial.log | tail -5
-                echo "=== Serial log (last 50 lines) ==="
-                tail -50 serial.log
-                exit 1
-              fi
-
-              # Success: a live session appeared
-              if grep -qiE "$BOOT_PATTERNS" serial.log; then
-                echo "  Boot progress detected in serial log"
-                BOOTED=true
-                break
-              fi
-            fi
-          done
-
-          if [ "$BOOTED" != "true" ]; then
-            # No serial output at all means the VM never ran — a different
-            # problem from "it booted but we did not recognise the output".
-            if [ ! -f serial.log ]; then
-              echo "::error::No serial.log was produced — QEMU wrote no output, so the VM likely never started"
-              if pgrep -f qemu-system-x86_64 >/dev/null; then
-                echo "note: a qemu-system-x86_64 process IS running"
-              else
-                echo "note: no qemu-system-x86_64 process is running"
-              fi
-              exit 1
-            fi
-            echo "::error::ISO did not reach a live session within ${TIMEOUT}s"
-            echo "=== Serial log (last 50 lines) ==="
-            tail -50 serial.log
-            exit 1
-          fi
-
-          echo "System reached a live session."
+          pip install -q pillow >/dev/null 2>&1 || true
+          # The authority is the DISPLAY, not the serial log. Grepping the log for
+          # "SDDM" matched `sddm.service start waiting` (the unit merely queued),
+          # and "cinnamon" matched a package name — so builds were declared booted
+          # while the guest was still in early boot, and the installer gate then
+          # drove a machine with no desktop. This polls screendumps instead and
+          # classifies console vs graphical, calibrated against real frames.
+          python3 scripts/ci-visual-check.py \
+            --wait-graphical \
+            --monitor mon.sock \
+            --serial serial.log \
+            --timeout "${BOOT_TIMEOUT:-300}" \
+            --outdir bootcheck
 
       # ---- INSTALLER GATE (launch half): prove Calamares actually starts ----
       # The gate step above proves the installer is present and configured.
@@ -410,12 +366,17 @@ jobs:
       # text VT — a separate console the graphical session's lock screen does
       # not cover, which is why the old typed diagnostics came out identical —
       # start Calamares on the graphical display, switch back and screendump
-      # its first page. Non-fatal: this is evidence, not a release blocker.
-      - name: Launch Calamares and capture its first page
-        continue-on-error: true
+      # its first page. This IS a release blocker: a green run must mean the
+      # installer genuinely drew, not merely that a screenshot was taken.
+      - name: Launch Calamares and verify it draws its first page
         run: |
           pip install -q pillow >/dev/null 2>&1 || true
-          python3 scripts/ci-calamares-gate.py --monitor mon.sock --outdir calamares
+          # This FAILS the build when it cannot prove Calamares drew. It used to
+          # carry `continue-on-error: true` and a script that returned success no
+          # matter what — so it passed with a screenshot of the boot console. It
+          # now captures a baseline frame, drives the guest, and requires the
+          # screen to have changed AND still be graphical.
+          python3 scripts/ci-visual-check.py --gate --monitor mon.sock --outdir calamares
 
       # ---- Try SSH connection ----
       - name: Test SSH connectivity
@@ -444,6 +405,11 @@ jobs:
 
           # Copy serial log
           cp serial.log test-results/ 2>/dev/null || true
+
+          # Copy the visual evidence: the graphical-session frame the boot check
+          # accepted, and the Calamares page the gate proved.
+          cp bootcheck/*.png test-results/ 2>/dev/null || true
+          cp calamares/*.png test-results/ 2>/dev/null || true
 
           # Copy the Calamares first-page screenshot, if the launch half ran
           cp calamares/*.png test-results/ 2>/dev/null || true

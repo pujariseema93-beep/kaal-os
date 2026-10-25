@@ -219,17 +219,30 @@ def gate(args):
         return 1
 
     # Text VT (tty2) is unaffected by the graphical session's lock screen.
+    # Waits are generous: the autovt getty is spawned on first switch, and a
+    # short sleep types the login into nothing at all.
     mon.talk("sendkey ctrl-alt-f2")
-    time.sleep(5)
+    time.sleep(8)
     mon.type_text(args.user + "\n")
-    time.sleep(5)
+    time.sleep(6)
     mon.type_text(args.password + "\n")
-    time.sleep(5)
+    time.sleep(6)
+
+    # Capture the text console *before* leaving it. Without this, a failed
+    # login and a failed command look identical from the desktop: the screen
+    # simply does not change. This frame shows which of the two happened.
+    vt_login = os.path.join(args.outdir, "vt2-after-login.png")
+    if screendump(mon, vt_login):
+        print("captured text console after login: %s" % vt_login)
 
     # Run as the live user, not root: Calamares warns but still draws.
     mon.type_text("DISPLAY=%s XAUTHORITY=/home/%s/.Xauthority calamares\n"
                   % (args.display, args.user))
     time.sleep(30)
+
+    vt_cmd = os.path.join(args.outdir, "vt2-after-command.png")
+    if screendump(mon, vt_cmd):
+        print("captured text console after the command: %s" % vt_cmd)
 
     mon.talk("sendkey ctrl-alt-f1")
     time.sleep(10)

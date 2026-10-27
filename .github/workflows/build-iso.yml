@@ -93,6 +93,9 @@ jobs:
             set -euxo pipefail
             # Longer timeouts + more retries: Fedora mirrors occasionally stall.
             printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
+            # Warm the metadata now: if the mirrors are serving bad data we want
+            # to know in 30 seconds, not after a two-hour install.
+            dnf -y makecache --refresh >/dev/null 2>&1 || echo 'note: makecache failed — mirrors may be unwell, continuing anyway'
 
             # policycoreutils provides /usr/sbin/load_policy, which anaconda's exit
             # handler calls because the kickstart sets `selinux --enforcing`. It is
@@ -117,7 +120,7 @@ jobs:
             # transient — a second pass often lands on a working mirror.
             set +e
             LMC_RC=1
-            for attempt in 1 2; do
+            for attempt in 1 2 3; do
               rm -rf /workspace/lmc-results
               livemedia-creator \
                 --ks distro-test-minimal.ks \
@@ -133,7 +136,19 @@ jobs:
               LMC_RC=${PIPESTATUS[0]}
               [ "${LMC_RC}" = "0" ] && break
               echo "=== smoke attempt ${attempt} failed (rc=${LMC_RC}) ==="
-              [ "${attempt}" = "1" ] && { echo "retrying in 60s..."; sleep 60; }
+              # Escalating backoff, and drop the dnf metadata cache first: a
+              # mirror serving stale or broken repomd data fails every attempt
+              # until the cache is discarded, which is why a flat 60s wait was
+              # not enough. `case` rather than `[ ... ] &&` so the loop body's
+              # last command cannot return non-zero under `set -e`.
+              case "${attempt}" in
+                1) WAIT=60 ;;
+                *) WAIT=180 ;;
+              esac
+              echo "retrying in ${WAIT}s after clearing the dnf metadata cache..."
+              dnf clean all >/dev/null 2>&1 || true
+              rm -rf /var/cache/dnf/* /var/cache/libdnf5/* 2>/dev/null || true
+              sleep "${WAIT}"
             done
             set -e
 
@@ -190,6 +205,9 @@ jobs:
             set -euxo pipefail
             # Longer timeouts + more retries: Fedora mirrors occasionally stall.
             printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
+            # Warm the metadata now: if the mirrors are serving bad data we want
+            # to know in 30 seconds, not after a two-hour install.
+            dnf -y makecache --refresh >/dev/null 2>&1 || echo 'note: makecache failed — mirrors may be unwell, continuing anyway'
 
             # policycoreutils provides /usr/sbin/load_policy, which anaconda's exit
             # handler calls because the kickstart sets `selinux --enforcing`. It is
@@ -226,7 +244,7 @@ jobs:
             mkdir -p /workspace/lmc-tmp
             set +e
             LMC_RC=1
-            for attempt in 1 2; do
+            for attempt in 1 2 3; do
               rm -rf /workspace/lmc-results
               livemedia-creator \
                 --ks distro-live.ks \
@@ -244,7 +262,19 @@ jobs:
               LMC_RC=${PIPESTATUS[0]}
               [ "${LMC_RC}" = "0" ] && break
               echo "=== full-build attempt ${attempt} failed (rc=${LMC_RC}) ==="
-              [ "${attempt}" = "1" ] && { echo "retrying in 60s..."; sleep 60; }
+              # Escalating backoff, and drop the dnf metadata cache first: a
+              # mirror serving stale or broken repomd data fails every attempt
+              # until the cache is discarded, which is why a flat 60s wait was
+              # not enough. `case` rather than `[ ... ] &&` so the loop body's
+              # last command cannot return non-zero under `set -e`.
+              case "${attempt}" in
+                1) WAIT=60 ;;
+                *) WAIT=180 ;;
+              esac
+              echo "retrying in ${WAIT}s after clearing the dnf metadata cache..."
+              dnf clean all >/dev/null 2>&1 || true
+              rm -rf /var/cache/dnf/* /var/cache/libdnf5/* 2>/dev/null || true
+              sleep "${WAIT}"
             done
             set -e
 

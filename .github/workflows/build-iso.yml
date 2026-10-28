@@ -92,7 +92,11 @@ jobs:
           run: |
             set -euxo pipefail
             # Longer timeouts + more retries: Fedora mirrors occasionally stall.
-            printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
+            printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\nmax_parallel_downloads=1\n' > /etc/dnf/dnf.conf
+            # One download at a time. The payload died at ~900 MiB of 1.45 GiB on
+            # every attempt, with healthy metadata and 107 GB free — the shape of a
+            # connection cap rather than a bad mirror, so stop opening three sockets
+            # at once. Slower, but a serial download is much harder to cut off.
             # Warm the metadata now: if the mirrors are serving bad data we want
             # to know in 30 seconds, not after a two-hour install.
             dnf -y makecache --refresh >/dev/null 2>&1 || echo 'note: makecache failed — mirrors may be unwell, continuing anyway'
@@ -204,7 +208,11 @@ jobs:
           run: |
             set -euxo pipefail
             # Longer timeouts + more retries: Fedora mirrors occasionally stall.
-            printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\n' > /etc/dnf/dnf.conf
+            printf '[main]\ngpgcheck=1\ninstallonly_limit=3\nclean_requirements_on_remove=True\ntimeout=300\nretries=10\nmax_parallel_downloads=1\n' > /etc/dnf/dnf.conf
+            # One download at a time. The payload died at ~900 MiB of 1.45 GiB on
+            # every attempt, with healthy metadata and 107 GB free — the shape of a
+            # connection cap rather than a bad mirror, so stop opening three sockets
+            # at once. Slower, but a serial download is much harder to cut off.
             # Warm the metadata now: if the mirrors are serving bad data we want
             # to know in 30 seconds, not after a two-hour install.
             dnf -y makecache --refresh >/dev/null 2>&1 || echo 'note: makecache failed — mirrors may be unwell, continuing anyway'

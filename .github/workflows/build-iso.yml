@@ -122,12 +122,29 @@ jobs:
             mkdir -p /workspace/lmc-tmp
             # Retry once: mirror timeouts ("Failed to download packages") are
             # transient — a second pass often lands on a working mirror.
+            # ---- Give anaconda a local repo instead of the network ----
+            # Its payload download dies ~800 MiB into 1.45 GiB on this pipeline,
+            # every attempt, with healthy metadata and 107 GB free. dnf retries
+            # and resumes properly, so fetch the set here and build from a
+            # kickstart whose only source is that directory. If the fetch fails
+            # the script passes the original kickstart through, so this is never
+            # worse than before.
+            KSFILE=distro-test-minimal.ks
+            PREFETCH=$(bash /workspace/scripts/ci-prefetch-payload.sh \
+                         "$KSFILE" /opt/rpms /tmp/build.ks 2>&1 || true)
+            echo "$PREFETCH"
+            FROM_SCRIPT=$(printf '%s\n' "$PREFETCH" | sed -n 's/^KICKSTART=//p' | tail -1)
+            # `if`, not `[ ... ] && ...`: the latter returns non-zero when the
+            # test fails, which aborts the step under set -e.
+            if [ -n "$FROM_SCRIPT" ]; then KSFILE="$FROM_SCRIPT"; fi
+            echo "building with kickstart: $KSFILE"
+
             set +e
             LMC_RC=1
             for attempt in 1 2 3; do
               rm -rf /workspace/lmc-results
               livemedia-creator \
-                --ks distro-test-minimal.ks \
+                --ks "$KSFILE" \
                 --no-virt \
                 --tmp /workspace/lmc-tmp \
                 --resultdir /workspace/lmc-results \
@@ -250,12 +267,30 @@ jobs:
             # container's overlayfs can hang anaconda)
             rm -rf /workspace/lmc-tmp /workspace/lmc-results
             mkdir -p /workspace/lmc-tmp
+            # ---- Give anaconda a local repo instead of the network ----
+            # Same reasoning as the smoke job. This kickstart's %packages also
+            # names rpmfusion-*-release, so the container needs RPM Fusion to be
+            # able to resolve the set at all.
+            dnf install -y \
+              "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
+              "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm" \
+              >/dev/null 2>&1 || echo "::warning::could not add RPM Fusion to the container — the pre-fetch will fall back to network repos"
+            KSFILE=distro-live.ks
+            PREFETCH=$(bash /workspace/scripts/ci-prefetch-payload.sh \
+                         "$KSFILE" /opt/rpms /tmp/build.ks 2>&1 || true)
+            echo "$PREFETCH"
+            FROM_SCRIPT=$(printf '%s\n' "$PREFETCH" | sed -n 's/^KICKSTART=//p' | tail -1)
+            # `if`, not `[ ... ] && ...`: the latter returns non-zero when the
+            # test fails, which aborts the step under set -e.
+            if [ -n "$FROM_SCRIPT" ]; then KSFILE="$FROM_SCRIPT"; fi
+            echo "building with kickstart: $KSFILE"
+
             set +e
             LMC_RC=1
             for attempt in 1 2 3; do
               rm -rf /workspace/lmc-results
               livemedia-creator \
-                --ks distro-live.ks \
+                --ks "$KSFILE" \
                 --no-virt \
                 --tmp /workspace/lmc-tmp \
                 --resultdir /workspace/lmc-results \

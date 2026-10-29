@@ -68,18 +68,16 @@ if [ "$DRY_RUN" = "0" ]; then
     echo "=== pre-fetch attempt ${attempt} ==="
     # --exclude-weakdeps matches '%packages --exclude-weakdeps' in the kickstart,
     # so the set we fetch is the set anaconda would install.
-    # dnf5 (Fedora 41+) moved --downloadonly out of `install` into a separate
-    # `download` subcommand, so probe instead of assuming.
-    if dnf install --help 2>/dev/null | grep -q -- '--downloadonly'; then
-      OK=0
-      dnf install --downloadonly --destdir="$DEST" -y \
-        --setopt=install_weak_deps=False $(tr '\n' ' ' < "$LIST") && OK=1
-    else
-      OK=0
-      # Groups are not resolvable by `dnf download`; fetch what it can take.
-      PKGS=$(grep -v '^@' "$LIST" | tr '\n' ' ')
-      [ -n "$PKGS" ] && dnf download --resolve --destdir="$DEST" --alldeps $PKGS && OK=1
-      echo "note: dnf download mode — group entries (@...) resolved by anaconda from the network"
+    # dnf5 accepts --downloadonly on `install` but NOT --destdir (that belongs to
+    # download/reposync/upgrade), so let it fill its own cache and harvest the
+    # RPMs out of there. Doing it this way keeps @group entries working, which
+    # `dnf download` cannot resolve.
+    OK=0
+    if dnf install --downloadonly -y --setopt=install_weak_deps=False \
+         $(tr '\n' ' ' < "$LIST"); then
+      find /var/cache/libdnf5 /var/cache/dnf -type f -name '*.rpm' \
+        -exec cp -n {} "$DEST"/ \; 2>/dev/null
+      OK=1
     fi
     if [ "$OK" = "1" ]; then
       FETCHED=1

@@ -129,14 +129,18 @@ jobs:
             # kickstart whose only source is that directory. If the fetch fails
             # the script passes the original kickstart through, so this is never
             # worse than before.
-            KSFILE=distro-test-minimal.ks
-            PREFETCH=$(bash /workspace/scripts/ci-prefetch-payload.sh \
-                         "$KSFILE" /opt/rpms /tmp/build.ks 2>&1 || true)
-            echo "$PREFETCH"
-            FROM_SCRIPT=$(printf '%s\n' "$PREFETCH" | sed -n 's/^KICKSTART=//p' | tail -1)
-            # `if`, not `[ ... ] && ...`: the latter returns non-zero when the
-            # test fails, which aborts the step under set -e.
-            if [ -n "$FROM_SCRIPT" ]; then KSFILE="$FROM_SCRIPT"; fi
+            # The script always leaves a usable kickstart at a FIXED path: the
+            # rewritten one if the fetch worked, a copy of the original if not.
+            # Do not parse the path out of its output. An earlier version did,
+            # and a stray newline produced "/tmp/build.ks\n" — which lmc reported
+            # as "kickstart file (/tmp/build.ks;) is missing" on every attempt.
+            bash /workspace/scripts/ci-prefetch-payload.sh \
+              distro-test-minimal.ks /opt/rpms /tmp/build.ks || true
+            KSFILE=/tmp/build.ks
+            if [ ! -f "$KSFILE" ]; then
+              echo "::warning::pre-fetch left no kickstart behind — using the original"
+              KSFILE=distro-test-minimal.ks
+            fi
             echo "building with kickstart: $KSFILE"
 
             set +e
@@ -275,14 +279,18 @@ jobs:
               "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
               "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm" \
               >/dev/null 2>&1 || echo "::warning::could not add RPM Fusion to the container — the pre-fetch will fall back to network repos"
-            KSFILE=distro-live.ks
-            PREFETCH=$(bash /workspace/scripts/ci-prefetch-payload.sh \
-                         "$KSFILE" /opt/rpms /tmp/build.ks 2>&1 || true)
-            echo "$PREFETCH"
-            FROM_SCRIPT=$(printf '%s\n' "$PREFETCH" | sed -n 's/^KICKSTART=//p' | tail -1)
-            # `if`, not `[ ... ] && ...`: the latter returns non-zero when the
-            # test fails, which aborts the step under set -e.
-            if [ -n "$FROM_SCRIPT" ]; then KSFILE="$FROM_SCRIPT"; fi
+            # The script always leaves a usable kickstart at a FIXED path: the
+            # rewritten one if the fetch worked, a copy of the original if not.
+            # Do not parse the path out of its output. An earlier version did,
+            # and a stray newline produced "/tmp/build.ks\n" — which lmc reported
+            # as "kickstart file (/tmp/build.ks;) is missing" on every attempt.
+            bash /workspace/scripts/ci-prefetch-payload.sh \
+              distro-live.ks /opt/rpms /tmp/build.ks || true
+            KSFILE=/tmp/build.ks
+            if [ ! -f "$KSFILE" ]; then
+              echo "::warning::pre-fetch left no kickstart behind — using the original"
+              KSFILE=distro-live.ks
+            fi
             echo "building with kickstart: $KSFILE"
 
             set +e

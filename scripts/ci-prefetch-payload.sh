@@ -125,25 +125,30 @@ else
   exit 0
 fi
 
-# ---- 4. kickstart with the local repo as its only source ------------------
-# Every url/repo line is dropped and one local repo takes their place, so
-# anaconda cannot fall back to the network for the payload. %post runs in the
-# installed system against the image's own repo config, so this does not affect
-# it.
-# Keep an install *source* as well as a repo: pykickstart expects one of
-# url/cdrom/harddrive/nfs, and stripping the url line without a replacement can
-# leave anaconda with "no installation source" — a different failure from the one
-# we are fixing. Both point at the local directory.
-awk -v src="url --url=\"file://${DEST}\"" \
-    -v repo="repo --name=kaal-local --baseurl=file://${DEST} --cost=1" '
-  /^(url|repo)[ \t]/ { next }
-  /^%packages/ && !done { print src; print repo; done=1 }
+# ---- 4. kickstart: local repo preferred, network kept as a fallback --------
+# The fetched set is NOT the full closure. `dnf install --downloadonly` skips
+# packages the container already has — glibc, bash, NetworkManager — so a
+# local-only kickstart dies with "nothing provides /bin/sh". Rather than chase
+# a perfect closure, make the local repo win on cost and leave the network
+# repos in place: the bulk comes from disk, and only the handful of base
+# packages anaconda still needs travel over the wire.
+awk -v repo="repo --name=kaal-local --baseurl=file://${DEST} --cost=1" '
+  # Demote every existing repo so the local one is preferred for anything it
+  # carries. 999 vs 1 is unambiguous; equal costs leave the choice to dnf.
+  /^repo[ \t]/ {
+    line = $0
+    sub(/--cost=[0-9]+/, "", line)
+    sub(/[ \t]+$/, "", line)
+    print line " --cost=999"
+    next
+  }
+  /^%packages/ && !done { print repo; done=1 }
   { print }
 ' "$KS" > "$OUT"
 
 if ! grep -q '^repo --name=kaal-local' "$OUT"; then
   echo "::warning::could not insert the local repo (no %packages section?) — using the original"
-  cp "$KS" "$OUT"
+  cp -f "$KS" "$OUT"
 fi
 
 echo "kickstart for the build: ${OUT}"

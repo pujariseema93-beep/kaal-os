@@ -72,11 +72,18 @@ if [ "$DRY_RUN" = "0" ]; then
     # download/reposync/upgrade), so let it fill its own cache and harvest the
     # RPMs out of there. Doing it this way keeps @group entries working, which
     # `dnf download` cannot resolve.
+    # Resolve against an EMPTY installroot, not against the container. Without
+    # --installroot, `install --downloadonly` skips whatever the container
+    # already has — glibc, bash, NetworkManager — and anaconda, installing into
+    # an empty root, then cannot resolve ("nothing provides /bin/sh").
     OK=0
-    if dnf install --downloadonly -y --setopt=install_weak_deps=False \
+    rm -rf /tmp/prefetch-root
+    if dnf install --downloadonly --installroot=/tmp/prefetch-root \
+         --releasever="${RELEASEVER:-44}" \
+         -y --setopt=install_weak_deps=False \
          $(tr '\n' ' ' < "$LIST"); then
-      find /var/cache/libdnf5 /var/cache/dnf -type f -name '*.rpm' \
-        -exec cp -n {} "$DEST"/ \; 2>/dev/null
+      find /var/cache/libdnf5 /var/cache/dnf /tmp/prefetch-root/var/cache \
+        -type f -name '*.rpm' -exec cp -n {} "$DEST"/ \; 2>/dev/null
       OK=1
     fi
     if [ "$OK" = "1" ]; then
@@ -125,24 +132,17 @@ else
   exit 0
 fi
 
-# ---- 4. kickstart: local repo preferred, network kept as a fallback --------
-# The fetched set is NOT the full closure. `dnf install --downloadonly` skips
-# packages the container already has — glibc, bash, NetworkManager — so a
-# local-only kickstart dies with "nothing provides /bin/sh". Rather than chase
-# a perfect closure, make the local repo win on cost and leave the network
-# repos in place: the bulk comes from disk, and only the handful of base
-# packages anaconda still needs travel over the wire.
-awk -v repo="repo --name=kaal-local --baseurl=file://${DEST} --cost=1" '
-  # Demote every existing repo so the local one is preferred for anything it
-  # carries. 999 vs 1 is unambiguous; equal costs leave the choice to dnf.
-  /^repo[ \t]/ {
-    line = $0
-    sub(/--cost=[0-9]+/, "", line)
-    sub(/[ \t]+$/, "", line)
-    print line " --cost=999"
-    next
-  }
-  /^%packages/ && !done { print repo; done=1 }
+# ---- 4. kickstart with the local directory as its ONLY source ---------------
+# Anaconda's payload follows the `url` install source and ignores `repo` lines
+# for it. Proven the hard way: with url=file:///opt/rpms (#126) it used the local
+# repo; with url=https://… plus a local repo at cost=1 (#127) it ignored the
+# local one and downloaded all 1473 packages from the network. So cost-based
+# preference cannot work — the url has to point at the local directory, which
+# means the fetched set must be complete. That is what --installroot above buys.
+awk -v src="url --url=\"file://${DEST}\"" \
+    -v repo="repo --name=kaal-local --baseurl=file://${DEST} --cost=1" '
+  /^(url|repo)[ \t]/ { next }
+  /^%packages/ && !done { print src; print repo; done=1 }
   { print }
 ' "$KS" > "$OUT"
 

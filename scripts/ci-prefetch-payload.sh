@@ -78,7 +78,11 @@ if [ "$DRY_RUN" = "0" ]; then
     # an empty root, then cannot resolve ("nothing provides /bin/sh").
     OK=0
     rm -rf /tmp/prefetch-root
+    # --use-host-config is required: with --installroot alone, dnf5 loads no
+    # repositories at all ("No repositories were loaded from the installroot")
+    # because it reads repo config from inside the target root, which is empty.
     if dnf install --downloadonly --installroot=/tmp/prefetch-root \
+         --use-host-config \
          --releasever="${RELEASEVER:-44}" \
          -y --setopt=install_weak_deps=False \
          $(tr '\n' ' ' < "$LIST"); then

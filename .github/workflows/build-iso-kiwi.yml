@@ -1,0 +1,117 @@
+name: Build ISO (kiwi)
+
+# A SEPARATE workflow on purpose. build-iso.yml stays exactly as it is, red and
+# all, so this path can be proven before anything is retired. Manual dispatch
+# only: it should not add noise to the pipeline until it has produced an ISO.
+#
+# Why kiwi: anaconda's payload downloader fails partway through this build every
+# time ("Failed to download the following packages", ~800 MiB into 1.45 GiB),
+# across six attempts and every retry strategy tried. kiwi installs packages
+# with dnf directly and has no equivalent downloader, so it sidesteps the
+# failure rather than working around it. Fedora is also moving live ISOs from
+# lorax to kiwi, so this is the direction upstream is going.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_name:
+        description: 'Name for the ISO (informational)'
+        required: false
+        default: 'kiwi'
+
+permissions:
+  contents: read
+
+jobs:
+  build-kiwi:
+    name: Build live ISO with kiwi-ng
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space (kiwi needs ~20 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/.ghcup /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+          sudo docker image prune -af 2>/dev/null || true
+          df -h /
+
+      - name: Build with kiwi-ng (Fedora 44 container)
+        uses: addnab/docker-run-action@v3
+        with:
+          image: fedora:44
+          # kiwi needs loop devices and mounts to assemble the ISO, so the
+          # container has to be privileged. This is the main structural
+          # difference from the livemedia-creator pipeline.
+          options: >-
+            --privileged
+            --volume ${{ github.workspace }}:/workspace
+            --workdir /workspace
+          run: |
+            set -euxo pipefail
+
+            dnf install -y kiwi-cli kiwi-system-dependencies
+
+            DESC=/workspace/packages/distro-iso-builder/kiwi
+
+            # kiwi copies everything under <description>/root/ into the image,
+            # so stage the seven KAAL packages there. Inside the image they
+            # appear at /kaal-staging, which is where config.sh looks.
+            rm -rf "$DESC/root"
+            mkdir -p "$DESC/root/kaal-staging"
+            for pkg in distro-bootloader distro-calamares distro-hardware \
+                       distro-iso-builder kaal-monitor kaal-security \
+                       kaal-spaces kaal-visual; do
+              if [ -d "/workspace/packages/$pkg" ]; then
+                cp -r "/workspace/packages/$pkg" "$DESC/root/kaal-staging/"
+              else
+                echo "::warning::package directory missing: packages/$pkg"
+              fi
+            done
+            echo "staged into kiwi root overlay:"
+            ls "$DESC/root/kaal-staging/"
+
+            chmod +x "$DESC/config.sh"
+
+            # --description is the directory holding distro-live.xml and config.sh.
+            kiwi-ng system build \
+              --description "$DESC" \
+              --target-dir /workspace/kiwi-out
+
+            echo "=== result ==="
+            find /workspace/kiwi-out -name '*.iso' -type f -printf '%p  %s bytes\n'
+            ISO=$(find /workspace/kiwi-out -name '*.iso' -type f | head -1)
+            if [ -z "$ISO" ]; then
+              echo "::error::kiwi produced no ISO"
+              find /workspace/kiwi-out -maxdepth 2 | head -40
+              exit 1
+            fi
+            sha256sum "$ISO" | tee "$ISO.sha256"
+
+            # leave the checkout clean so the overlay never gets committed
+            rm -rf "$DESC/root"
+
+      - name: Upload ISO
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaal-os-live-iso-kiwi
+          path: |
+            kiwi-out/**/*.iso
+            kiwi-out/**/*.iso.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload kiwi build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiwi-build-log
+          path: |
+            kiwi-out/**/*.log
+            kiwi-out/build/
+          if-no-files-found: warn
+          retention-days: 7

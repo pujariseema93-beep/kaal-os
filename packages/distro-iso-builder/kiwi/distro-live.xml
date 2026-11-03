@@ -7,12 +7,13 @@
     kiwi-NG is a more modern, flexible image builder that supports
     multiple output formats (ISO, raw disk, qcow2, OCI container).
 
-    Build command:
-      sudo kiwi-ng system build \
-        --description kiwi/distro-live.xml \
-        --target-dir /var/tmp/kiwi-build
+    Build with ./build-iso-kiwi.sh (which passes the description directory and
+    the target directory to kiwi-ng), or run kiwi-ng system build directly with
+    those two paths as arguments. This produces a live ISO in the target dir.
 
-    This produces a live ISO in the target directory.
+    Note: no double-dash sequences in this comment. A literal double dash is
+    illegal inside an XML comment, and an earlier version of this header
+    embedded the command line verbatim, which made the whole file unparseable.
     =============================================================================
 -->
 <image
@@ -40,7 +41,6 @@
             firmware="uefi"
             kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
             bootpartition="false"
-            bootkernel="custom"
             hybrid="true"
             hybridpersistent="true"
             hybridpersistent_filesystem="ext4"
@@ -123,6 +123,8 @@
         <package name="grub2-tools"/>
         <package name="shim-x64"/>
         <package name="dracut"/>
+        <package name="dracut-live"/>
+        <package name="dracut-config-generic"/>
         <package name="systemd-boot"/>
 
         <!-- Audio -->
@@ -133,7 +135,6 @@
 
         <!-- GPU drivers -->
         <package name="akmod-nvidia"/>
-        <package name="akmod-nvidia-open"/>
         <package name="mesa-vulkan-drivers"/>
         <package name="mesa-dri-drivers"/>
         <package name="vulkan-tools"/>
@@ -166,6 +167,7 @@
         <package name="flatpak"/>
         <package name="firefox"/>
         <package name="git"/>
+        <package name="openssl"/>
 
         <!-- Live image tools -->
         <package name="livecd-tools"/>

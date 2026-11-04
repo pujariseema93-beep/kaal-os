@@ -40,65 +40,21 @@ jobs:
           df -h /
 
       - name: Build with kiwi-ng (Fedora 44 container)
-        uses: addnab/docker-run-action@v3
-        with:
-          image: fedora:44
-          # kiwi needs loop devices and mounts to assemble the ISO, so the
-          # container has to be privileged. This is the main structural
-          # difference from the livemedia-creator pipeline.
-          #
-          # Literal block ("|"), not folded (">-"), and short "-v": this action
-          # splits `options` per line. A folded scalar collapses it into one
-          # line and the action mis-parses its arguments — run #1 and #2 both
-          # failed with "pull access denied for 622bd2", i.e. it tried to pull a
-          # mangled tag instead of fedora:44. build-iso.yml already uses this
-          # exact shape successfully.
-          options: |
-            --privileged
-            -v ${{ github.workspace }}:/workspace
-          run: |
-            set -euxo pipefail
-
-            dnf install -y kiwi-cli kiwi-system-dependencies
-
-            DESC=/workspace/packages/distro-iso-builder/kiwi
-
-            # kiwi copies everything under <description>/root/ into the image,
-            # so stage the seven KAAL packages there. Inside the image they
-            # appear at /kaal-staging, which is where config.sh looks.
-            rm -rf "$DESC/root"
-            mkdir -p "$DESC/root/kaal-staging"
-            for pkg in distro-bootloader distro-calamares distro-hardware \
-                       distro-iso-builder kaal-monitor kaal-security \
-                       kaal-spaces kaal-visual; do
-              if [ -d "/workspace/packages/$pkg" ]; then
-                cp -r "/workspace/packages/$pkg" "$DESC/root/kaal-staging/"
-              else
-                echo "::warning::package directory missing: packages/$pkg"
-              fi
-            done
-            echo "staged into kiwi root overlay:"
-            ls "$DESC/root/kaal-staging/"
-
-            chmod +x "$DESC/config.sh"
-
-            # --description is the directory holding distro-live.xml and config.sh.
-            kiwi-ng system build \
-              --description "$DESC" \
-              --target-dir /workspace/kiwi-out
-
-            echo "=== result ==="
-            find /workspace/kiwi-out -name '*.iso' -type f -printf '%p  %s bytes\n'
-            ISO=$(find /workspace/kiwi-out -name '*.iso' -type f | head -1)
-            if [ -z "$ISO" ]; then
-              echo "::error::kiwi produced no ISO"
-              find /workspace/kiwi-out -maxdepth 2 | head -40
-              exit 1
-            fi
-            sha256sum "$ISO" | tee "$ISO.sha256"
-
-            # leave the checkout clean so the overlay never gets committed
-            rm -rf "$DESC/root"
+        # docker directly, not addnab/docker-run-action. That action received an
+        # empty `image` input on this workflow and tried to pull a mangled tag
+        # ("pull access denied for 916ccf:2bc7b25a…") on three consecutive runs,
+        # even with the input present in the step's `with:` block. Calling docker
+        # here removes the dependency and makes the command line explicit.
+        #
+        # --privileged is required: kiwi needs loop devices and mounts to
+        # assemble the ISO. This is the main structural difference from the
+        # livemedia-creator pipeline.
+        run: |
+          docker run --rm --privileged \
+            --volume "${{ github.workspace }}:/workspace" \
+            --workdir /workspace \
+            fedora:44 \
+            bash /workspace/scripts/ci-kiwi-build.sh
 
       - name: Upload ISO
         if: success()

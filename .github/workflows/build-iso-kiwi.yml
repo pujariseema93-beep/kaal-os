@@ -46,10 +46,16 @@ jobs:
           # kiwi needs loop devices and mounts to assemble the ISO, so the
           # container has to be privileged. This is the main structural
           # difference from the livemedia-creator pipeline.
-          options: >-
+          #
+          # Literal block ("|"), not folded (">-"), and short "-v": this action
+          # splits `options` per line. A folded scalar collapses it into one
+          # line and the action mis-parses its arguments — run #1 and #2 both
+          # failed with "pull access denied for 622bd2", i.e. it tried to pull a
+          # mangled tag instead of fedora:44. build-iso.yml already uses this
+          # exact shape successfully.
+          options: |
             --privileged
-            --volume ${{ github.workspace }}:/workspace
-            --workdir /workspace
+            -v ${{ github.workspace }}:/workspace
           run: |
             set -euxo pipefail
 

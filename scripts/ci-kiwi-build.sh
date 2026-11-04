@@ -19,7 +19,27 @@ cat /etc/fedora-release || true
 df -h / | tail -1
 
 echo "=== installing kiwi ==="
-dnf install -y kiwi-cli kiwi-system-dependencies
+# "kiwi-system-dependencies" is the openSUSE package name and does not exist on
+# Fedora (run #5: "No match for argument: kiwi-system-dependencies"). Fedora
+# splits the same build dependencies into kiwi-systemdeps-* metapackages, and
+# which ones exist varies by release — so log what is actually available and
+# install whatever resolves, rather than pinning one name and failing.
+dnf install -y kiwi-cli
+
+echo "--- available kiwi packages ---"
+dnf list --available 'kiwi*' 2>/dev/null | awk '{print $1}' | sort -u | head -40 || true
+
+for p in kiwi-systemdeps-iso kiwi-systemdeps-filesystems kiwi-systemdeps-core \
+         kiwi-systemdeps-bootloaders kiwi-systemdeps-disk-images kiwi-systemdeps; do
+    if dnf install -y "$p" >/dev/null 2>&1; then
+        echo "installed: $p"
+    else
+        echo "not available, skipped: $p"
+    fi
+done
+
+echo "--- kiwi-ng version ---"
+kiwi-ng --version || { echo "::error::kiwi-ng is not installed"; exit 1; }
 
 echo "=== staging the seven KAAL packages into kiwi's root overlay ==="
 # kiwi copies everything under <description>/root/ into the image, so the

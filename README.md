@@ -81,6 +81,15 @@ Seven packages make up the distribution:
 Full blueprint: `docs/Distro_Specification.html` (15 sections, opens in a browser).
 Build instructions: `BUILD_GUIDE.md`.
 
+## Related, but separate
+
+[**Gea**](https://github.com/pujariseema93-beep/gea) — a web OS with Spaces, running in the browser.
+
+Its own product and its own repository, not a component of this one. Where KAAL OS ships a desktop
+environment inside an image, Gea is a native web shell talking to a small local service: no
+streaming, no server, no install. AGPL-3.0. Nothing from that repo ships in this image, and the
+code here does not depend on it.
+
 ## How a build works
 
 ```

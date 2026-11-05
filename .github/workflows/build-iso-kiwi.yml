@@ -12,6 +12,15 @@ name: Build ISO (kiwi)
 # lorax to kiwi, so this is the direction upstream is going.
 
 on:
+  # Runs itself on any change to the build path. Dispatching by hand meant every
+  # fix waited for someone to tap a button — which is not automation, it's a
+  # reminder. build-iso.yml ignores these same paths, so the distro pipeline is
+  # not triggered by kiwi work.
+  push:
+    paths:
+      - 'packages/distro-iso-builder/kiwi/**'
+      - 'scripts/ci-kiwi-build.sh'
+      - '.github/workflows/build-iso-kiwi.yml'
   workflow_dispatch:
     inputs:
       build_name:

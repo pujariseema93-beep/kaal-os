@@ -19,6 +19,11 @@ cat /etc/fedora-release || true
 df -h / | tail -1
 
 echo "=== installing kiwi ==="
+# jing is kiwi's schema validator. Without it kiwi prints only "Invalid sequence
+# in interleave" with no element or line — which is what three runs in a row
+# reported. With it, the report names the offending element precisely. Install
+# the diagnostic before the thing that needs diagnosing.
+dnf install -y jing || echo "::warning::jing unavailable — schema errors will be vague"
 # "kiwi-system-dependencies" is the openSUSE package name and does not exist on
 # Fedora (run #5: "No match for argument: kiwi-system-dependencies"). Fedora
 # splits the same build dependencies into kiwi-systemdeps-* metapackages, and

@@ -39,7 +39,15 @@ for p in kiwi-systemdeps-iso kiwi-systemdeps-filesystems kiwi-systemdeps-core \
 done
 
 echo "--- kiwi-ng version ---"
-kiwi-ng --version || { echo "::error::kiwi-ng is not installed"; exit 1; }
+# Check for the BINARY, not its exit code. `kiwi-ng --version` prints
+# "KIWI (next generation) version 11.1.1" and then exits non-zero, so an
+# `|| error` guard here reported "kiwi-ng is not installed" on a machine where
+# it had just installed perfectly (run #6).
+if ! command -v kiwi-ng >/dev/null 2>&1; then
+    echo "::error::kiwi-ng is not on PATH after installing kiwi-cli"
+    exit 1
+fi
+kiwi-ng --version 2>&1 | head -3 || true
 
 echo "=== staging the seven KAAL packages into kiwi's root overlay ==="
 # kiwi copies everything under <description>/root/ into the image, so the

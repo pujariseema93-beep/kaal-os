@@ -50,6 +50,17 @@ on:
           - zstd
   push:
     branches: [main]
+    # Kiwi-only changes must not launch the livemedia-creator pipeline. That
+    # pipeline cannot build at the moment (anaconda's payload downloader fails
+    # partway through every attempt), so each such commit bought a failing run
+    # and a failure email that said nothing about the change being made. The lmc
+    # pipeline still runs for anything it actually builds: kickstarts, packages,
+    # and this workflow itself. GitHub runs the workflow if ANY changed path is
+    # outside this list, so a commit touching both still builds.
+    paths-ignore:
+      - 'scripts/ci-kiwi-build.sh'
+      - '.github/workflows/build-iso-kiwi.yml'
+      - 'packages/distro-iso-builder/kiwi/**'
     tags: ['v*']
 
 permissions:

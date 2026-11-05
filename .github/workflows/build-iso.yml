@@ -61,6 +61,9 @@ on:
       - 'scripts/ci-kiwi-build.sh'
       - '.github/workflows/build-iso-kiwi.yml'
       - 'packages/distro-iso-builder/kiwi/**'
+      # build-iso-kiwi.sh is the local kiwi entry point. It was missed in the
+      # first pass, so the config.xml rename still triggered run #137.
+      - 'packages/distro-iso-builder/build-iso-kiwi.sh'
     tags: ['v*']
 
 permissions:

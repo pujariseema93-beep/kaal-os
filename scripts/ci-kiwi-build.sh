@@ -54,19 +54,30 @@ echo "=== staging the seven KAAL packages into kiwi's root overlay ==="
 # packages are staged there. Inside the image they appear at /kaal-staging,
 # which is what config.sh reads.
 DESC=/workspace/packages/distro-iso-builder/kiwi
-rm -rf "$DESC/root"
-mkdir -p "$DESC/root/kaal-staging"
+
+# Stage to /tmp FIRST, then move into place. The overlay lives at
+# $DESC/root/, which is itself inside packages/distro-iso-builder/ — so copying
+# that package straight into it recursed into itself (run #8:
+# "cp: cannot copy a directory ... into itself").
+STAGE_TMP=/tmp/kaal-staging
+rm -rf "$STAGE_TMP" "$DESC/root"
+mkdir -p "$STAGE_TMP"
 
 for pkg in distro-bootloader distro-calamares distro-hardware \
            distro-iso-builder kaal-monitor kaal-security \
            kaal-spaces kaal-visual; do
     if [ -d "/workspace/packages/$pkg" ]; then
-        cp -r "/workspace/packages/$pkg" "$DESC/root/kaal-staging/"
+        cp -r "/workspace/packages/$pkg" "$STAGE_TMP/"
     else
         echo "::warning::package directory missing: packages/$pkg"
     fi
 done
-echo "staged:"
+
+mkdir -p "$DESC/root"
+cp -r "$STAGE_TMP" "$DESC/root/kaal-staging"
+rm -rf "$STAGE_TMP"
+
+echo "staged into the kiwi overlay:"
 ls "$DESC/root/kaal-staging/"
 
 chmod +x "$DESC/config.sh"

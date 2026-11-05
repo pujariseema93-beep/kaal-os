@@ -31,30 +31,18 @@
 
     <!-- ==== Preferences ==== -->
     <preferences>
-        <!-- Bootloader configuration -->
-        <bootloader-theme>distro</bootloader-theme>
-        <bootsplash-theme>distro</bootsplash-theme>
-
-        <!-- Image type: Live ISO -->
-        <type
-            image="iso"
-            firmware="uefi"
-            kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
-            bootpartition="false"
-            hybrid="true"
-            hybridpersistent="true"
-            hybridpersistent_filesystem="ext4"
-            fsmountoptions="compress=zstd:3"
-            splash="distro" />
-
-        <!-- Version -->
+        <!-- Order matters: kiwi validates <preferences> as a sequence, and
+             <type> must come LAST. An earlier version had <type> first, which
+             produced "RELAXNG_ERR_INTERSEQ: Invalid sequence in interleave". -->
         <version>0.1.0</version>
         <packagemanager>dnf5</packagemanager>
 
-        <!-- Locale -->
         <locale>en_US.UTF-8</locale>
         <keytable>us</keytable>
         <timezone>Asia/Kolkata</timezone>
+
+        <bootloader-theme>distro</bootloader-theme>
+        <bootsplash-theme>distro</bootsplash-theme>
 
         <!-- RPM exclusions -->
         <rpm-excludelist>
@@ -67,6 +55,18 @@
             <exclude name="nano"/>
             <exclude name="nano-default-editor"/>
         </rpm-excludelist>
+
+        <!-- Image type: live ISO. bootpartition was removed: schematron says it
+             is only available for oem images. -->
+        <type
+            image="iso"
+            firmware="uefi"
+            kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
+            hybrid="true"
+            hybridpersistent="true"
+            hybridpersistent_filesystem="ext4"
+            fsmountoptions="compress=zstd:3"
+            splash="distro" />
     </preferences>
 
     <!-- ==== Users ==== -->

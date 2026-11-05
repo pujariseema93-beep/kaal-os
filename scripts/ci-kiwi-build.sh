@@ -84,7 +84,10 @@ chmod +x "$DESC/config.sh"
 
 echo "=== kiwi-ng system build ==="
 rm -rf /workspace/kiwi-out
-kiwi-ng system build \
+# --debug: when schema validation fails, kiwi prints only a summary by default
+# ("Failed to validate schema and/or schematron rules"). With --debug it names
+# the offending element, which turns a guessing game into a reading exercise.
+kiwi-ng --debug system build \
     --description "$DESC" \
     --target-dir /workspace/kiwi-out
 

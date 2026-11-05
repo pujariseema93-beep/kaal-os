@@ -10,8 +10,8 @@ parallel track while the image build is being moved from lorax to kiwi.
 python3 spacesd.py --ui index.html
 ```
 
-Then open <http://127.0.0.1:8471>. No dependencies, no pip install — Python 3.9+
-and a browser.
+Then open <http://127.0.0.1:8471>. No dependencies, no pip install — Python 3
+and a browser. Tested on 3.12 and 3.13 in CI.
 
 On a phone, `index.html` also opens standalone and runs in **local mode**:
 same Spaces mechanic, state in `localStorage`, no real files. The badge in the
@@ -56,4 +56,4 @@ python3 test_spacesd.py
 
 28 assertions, covering permitted writes, refusals, per-space isolation, path
 escape, unknown inputs, and persistence across a restart. Run automatically by
-`.github/workflows/spacesd-ci.yml` on Python 3.9 and 3.12.
+`.github/workflows/spacesd-ci.yml` on Python 3.12 and 3.13.

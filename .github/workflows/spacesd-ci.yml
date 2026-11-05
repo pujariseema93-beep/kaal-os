@@ -26,9 +26,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9 is the floor claimed in the daemon's docstring. It is in the
-        # matrix so the claim is tested rather than asserted.
-        python: ['3.9', '3.12']
+        # Two versions, so a stdlib API that moved gets caught. 3.9 was here
+        # first and failed with "not found for Ubuntu 26.04" — the runner image
+        # no longer ships a 3.9 build, so asking for it tested nothing.
+        python: ['3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
 

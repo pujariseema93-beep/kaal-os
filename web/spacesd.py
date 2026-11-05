@@ -12,8 +12,9 @@ with policy actually enforced rather than merely displayed.
 
 This daemon answers that question in the smallest possible form. It is:
 
-  * stdlib only — no pip install, runs on any Python 3.9+ (Mint, Ubuntu,
-    Windows, macOS, a Raspberry Pi),
+  * stdlib only — no pip install, no dependency to rot. Tested on 3.12 and
+    3.13 in CI; it uses nothing newer than the 3.8 stdlib, but the tests are
+    what the claim rests on (Mint, Ubuntu, Windows, macOS, a Raspberry Pi),
   * local only — binds 127.0.0.1 by default, so nothing is exposed,
   * scoped — each space is a directory; paths cannot escape their space,
   * policy-enforcing — a write in a space without the `files` grant is refused

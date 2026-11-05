@@ -55,8 +55,8 @@ fi
 # Prepare description
 DESC_DIR="$TARGET/description"
 mkdir -p "$DESC_DIR"
-cp "$SCRIPT_DIR/kiwi/distro-live.xml" "$DESC_DIR/"
-sed -i "s/\[DISTRO_NAME\]/$DISTRO_NAME/g" "$DESC_DIR/distro-live.xml"
+cp "$SCRIPT_DIR/kiwi/config.xml" "$DESC_DIR/"
+sed -i "s/\[DISTRO_NAME\]/$DISTRO_NAME/g" "$DESC_DIR/config.xml"
 
 # Build
 echo "Building ISO with kiwi-NG..."

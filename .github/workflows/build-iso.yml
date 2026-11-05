@@ -64,6 +64,10 @@ on:
       # build-iso-kiwi.sh is the local kiwi entry point. It was missed in the
       # first pass, so the config.xml rename still triggered run #137.
       - 'packages/distro-iso-builder/build-iso-kiwi.sh'
+      # web/ is the Spaces shell + local service: a parallel track, not in the
+      # image yet, so it must not trigger a distro build.
+      - 'web/**'
+      - '.github/workflows/spacesd-ci.yml'
     tags: ['v*']
 
 permissions:

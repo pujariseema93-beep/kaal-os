@@ -19,11 +19,12 @@ cat /etc/fedora-release || true
 df -h / | tail -1
 
 echo "=== installing kiwi ==="
-# jing is kiwi's schema validator. Without it kiwi prints only "Invalid sequence
-# in interleave" with no element or line — which is what three runs in a row
-# reported. With it, the report names the offending element precisely. Install
-# the diagnostic before the thing that needs diagnosing.
-dnf install -y jing || echo "::warning::jing unavailable — schema errors will be vague"
+# Schema diagnostics. kiwi asks for "jing", which is not a Fedora package
+# ("No match for argument: jing"), so install libxml2-utils instead: xmllint
+# validates against the same RelaxNG schema and reports LINE NUMBERS, which is
+# what kiwi's summary refuses to give us. Install the diagnostic before the
+# thing that needs diagnosing.
+dnf install -y libxml2-utils || echo "::warning::libxml2-utils unavailable"
 # "kiwi-system-dependencies" is the openSUSE package name and does not exist on
 # Fedora (run #5: "No match for argument: kiwi-system-dependencies"). Fedora
 # splits the same build dependencies into kiwi-systemdeps-* metapackages, and
@@ -89,9 +90,23 @@ chmod +x "$DESC/config.sh"
 
 echo "=== kiwi-ng system build ==="
 rm -rf /workspace/kiwi-out
+# ---- validate the description against kiwi's own schema, with line numbers ----
+# kiwi's summary ("Invalid sequence in interleave") names no element and no line.
+# Its schema ships inside the package, so validate against that same file first.
+echo "=== schema self-check (xmllint against kiwi's own RelaxNG) ==="
+RNG=$(find / -name "kiwi.rng" -o -name "*.rng" -path "*kiwi*" 2>/dev/null | head -1)
+echo "schema: ${RNG:-not found}"
+if [ -n "$RNG" ] && command -v xmllint >/dev/null 2>&1; then
+    xmllint --noout --relaxng "$RNG" "$DESC/config.xml" \
+        && echo "schema check: PASSED" \
+        || echo "::error::schema check FAILED — the lines above name the problem"
+else
+    echo "::warning::could not locate kiwi's schema, or xmllint missing — falling back to kiwi's own report"
+fi
+
 # --debug: when schema validation fails, kiwi prints only a summary by default
-# ("Failed to validate schema and/or schematron rules"). With --debug it names
-# the offending element, which turns a guessing game into a reading exercise.
+# ("Failed to validate schema and/or schematron rules"). With --debug it dumps
+# the parsed document, which is how we found that jing was missing.
 kiwi-ng --debug system build \
     --description "$DESC" \
     --target-dir /workspace/kiwi-out

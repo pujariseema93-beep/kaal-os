@@ -124,6 +124,12 @@
         <package name="shim-x64"/>
         <package name="dracut"/>
         <package name="dracut-live"/>
+        <!-- Required by kiwi for image="iso" with flags="overlay": it errors out
+             before building with "Required dracut module package missing in
+             package list — one of ['dracut-kiwi-live', 'kiwi-dracut-live'] is
+             required for the selected live iso image type". This is the dracut
+             module that mounts the live overlay root. -->
+        <package name="dracut-kiwi-live"/>
         <package name="dracut-config-generic"/>
         <package name="systemd-boot"/>
 

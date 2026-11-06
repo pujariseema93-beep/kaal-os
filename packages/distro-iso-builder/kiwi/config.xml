@@ -17,7 +17,7 @@
     =============================================================================
 -->
 <image
-    name="KAAL OS"
+    name="KAAL-OS"
     displayname="KAAL OS Live"
     schemaversion="8.5">
 
@@ -36,7 +36,7 @@
         <version>0.1.0</version>
         <packagemanager>dnf5</packagemanager>
 
-        <locale>en_US.UTF-8</locale>
+        <locale>en_US</locale>
         <keytable>us</keytable>
         <timezone>Asia/Kolkata</timezone>
 
@@ -51,11 +51,10 @@
             filesystem="btrfs"
             firmware="uefi"
             kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
-            hybrid="true"
             hybridpersistent="true"
             hybridpersistent_filesystem="ext4"
             fsmountoptions="compress=zstd:3"
-            splash="distro" />
+            flags="overlay" />
     </preferences>
 
     <!-- ==== Users ==== -->

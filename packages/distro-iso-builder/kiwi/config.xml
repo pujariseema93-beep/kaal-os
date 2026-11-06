@@ -19,8 +19,7 @@
 <image
     name="KAAL OS"
     displayname="KAAL OS Live"
-    schemaversion="9.0"
-    filesystem="btrfs">
+    schemaversion="8.5">
 
     <!-- ==== Description ==== -->
     <description type="system">
@@ -44,22 +43,12 @@
         <bootloader-theme>distro</bootloader-theme>
         <bootsplash-theme>distro</bootsplash-theme>
 
-        <!-- RPM exclusions -->
-        <rpm-excludelist>
-            <exclude name="fedora-release"/>
-            <exclude name="fedora-release-identity"/>
-            <exclude name="fedora-logos"/>
-            <exclude name="fedora-backgrounds"/>
-            <exclude name="sendmail"/>
-            <exclude name="postfix"/>
-            <exclude name="nano"/>
-            <exclude name="nano-default-editor"/>
-        </rpm-excludelist>
 
         <!-- Image type: live ISO. bootpartition was removed: schematron says it
              is only available for oem images. -->
         <type
             image="iso"
+            filesystem="btrfs"
             firmware="uefi"
             kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
             hybrid="true"
@@ -103,6 +92,18 @@
 
     <!-- ==== Packages ==== -->
     <packages type="image">
+        <!-- Exclusions. These were an <rpm-excludelist> in <preferences>, which
+             kiwi 11 no longer accepts there; <ignore> is the current mechanism and
+             lives inside <packages>. -->
+        <ignore name="fedora-release"/>
+        <ignore name="fedora-release-identity"/>
+        <ignore name="fedora-logos"/>
+        <ignore name="fedora-backgrounds"/>
+        <ignore name="sendmail"/>
+        <ignore name="postfix"/>
+        <ignore name="nano"/>
+        <ignore name="nano-default-editor"/>
+
         <!-- Base system -->
         <package name="@core"/>
         <package name="@standard"/>

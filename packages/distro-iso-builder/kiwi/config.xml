@@ -80,13 +80,13 @@
         <source path="https://download1.rpmfusion.org/free/fedora/releases/44/Everything/x86_64/os/"/>
     </repository>
     <repository>
-        <source path="https://download1.rpmfusion.org/free/fedora/updates/44/Everything/x86_64/"/>
+        <source path="https://download1.rpmfusion.org/free/fedora/updates/44/x86_64/"/>
     </repository>
     <repository>
         <source path="https://download1.rpmfusion.org/nonfree/fedora/releases/44/Everything/x86_64/os/"/>
     </repository>
     <repository>
-        <source path="https://download1.rpmfusion.org/nonfree/fedora/updates/44/Everything/x86_64/"/>
+        <source path="https://download1.rpmfusion.org/nonfree/fedora/updates/44/x86_64/"/>
     </repository>
 
     <!-- ==== Packages ==== -->

@@ -71,10 +71,10 @@
 
     <!-- ==== Repositories ==== -->
     <repository>
-        <source path="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/"/>
+        <source path="https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/"/>
     </repository>
     <repository>
-        <source path="https://download.fedoraproject.org/pub/fedora/linux/updates/44/Everything/x86_64/"/>
+        <source path="https://dl.fedoraproject.org/pub/fedora/linux/updates/44/Everything/x86_64/"/>
     </repository>
     <repository>
         <source path="https://download1.rpmfusion.org/free/fedora/releases/44/Everything/x86_64/os/"/>

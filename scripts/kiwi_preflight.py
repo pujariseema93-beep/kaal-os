@@ -118,24 +118,34 @@ def check_requirements(d: dict) -> list[dict]:
     return out
 
 
-def check_repos(d: dict, timeout: float, skip: bool) -> list[dict]:
+def check_repos(d: dict, timeout: float, skip: bool, attempts: int = 2) -> list[dict]:
     out = []
     if skip:
         return [{"check": "repository reachability", "pass": True, "detail": "skipped (--skip-network)"}]
     for url in d["repos"]:
-        target = url.rstrip("/") + "/repodata/repomd.xml"
-        try:
-            req = urllib.request.Request(target, headers={"User-Agent": UA}, method="GET")
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                code = r.status
-        except urllib.error.HTTPError as e:
-            code = e.code
-        except Exception as e:  # noqa: BLE001
-            # A timeout or DNS blip is not the same as a wrong URL. Failing the
-            # build on a transient network error trains people to ignore the
-            # check; a 404 is a mistake in the description and must fail.
-            out.append({"check": f"repo reachable: {url[:60]}", "pass": True,
-                        "detail": f"unreachable ({type(e).__name__}) — treated as transient, not a 404"})
+        last_err = None
+        for _attempt in range(attempts):
+            target = url.rstrip("/") + "/repodata/repomd.xml"
+            try:
+                req = urllib.request.Request(target, headers={"User-Agent": UA}, method="GET")
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    code = r.status
+                break
+            except urllib.error.HTTPError as e:
+                code = e.code
+                break
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                code = None
+        if code is None:
+            # A timeout or DNS blip is not a mistake in the description, so it
+            # must not fail the build. But it must not vanish either: run #20
+            # died on a mirror whose metadata was broken, and the preflight had
+            # already seen that repo as unreachable and said nothing louder than
+            # "PASS". A warning is the honest middle.
+            out.append({"check": f"repo reachable: {url[:60]}", "pass": True, "warn": True,
+                        "detail": f"unreachable after {attempts} attempts "
+                                  f"({type(last_err).__name__}) — the build may still fail here"})
             continue
         # 4xx means the description points at the wrong place — always a failure.
         # 5xx is the mirror's problem and must not block a correct build.
@@ -143,8 +153,8 @@ def check_repos(d: dict, timeout: float, skip: bool) -> list[dict]:
             out.append({"check": f"repo serves repodata: {url[:60]}", "pass": True,
                         "detail": "HTTP 200"})
         elif 500 <= code < 600:
-            out.append({"check": f"repo serves repodata: {url[:60]}", "pass": True,
-                        "detail": f"HTTP {code} — server-side, treated as transient"})
+            out.append({"check": f"repo serves repodata: {url[:60]}", "pass": True, "warn": True,
+                        "detail": f"HTTP {code} — server-side; the build may fail on this repository"})
         else:
             out.append({"check": f"repo serves repodata: {url[:60]}", "pass": False,
                         "detail": f"HTTP {code} — the URL in the description is wrong"})
@@ -202,6 +212,7 @@ def main() -> int:
     checks += check_packages_dnf(d, args.dnf)
 
     failed = [c for c in checks if not c["pass"]]
+    warned = [c for c in checks if c["pass"] and c.get("warn")]
 
     if args.json:
         print(json.dumps({"description": str(path), "parsed": d,
@@ -213,11 +224,19 @@ def main() -> int:
         print(f"packages    : {len(d['packages'])} in image, {len(d['ignores'])} ignored, "
               f"{len(d['removed'])} removed\n")
         for c in checks:
-            mark = "PASS" if c["pass"] else "FAIL"
+            mark = "FAIL" if not c["pass"] else ("WARN" if c.get("warn") else "PASS")
             print(f"  {mark}  {c['check']}")
             if not c["pass"] or args.dnf:
                 print(f"        {c['detail']}")
-        print(f"\nverdict : {'PASS — safe to build' if not failed else f'FAIL — {len(failed)} check(s)'}")
+        if failed:
+            print(f"\nverdict : FAIL — {len(failed)} check(s)")
+        elif warned:
+            print(f"\nverdict : PASS — {len(warned)} warning(s) that may still sink the build")
+            for w in warned:
+                # make it appear in the GitHub Actions run summary, not just the log
+                print(f"::warning::{w['check']} — {w['detail']}")
+        else:
+            print("\nverdict : PASS — safe to build")
 
     return 0 if not failed else 1
 

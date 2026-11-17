@@ -66,12 +66,17 @@ def load(path: Path) -> dict:
                 ignores.append(e.get("name"))
     prefs = root.find("preferences")
     typ = prefs.find("type") if prefs is not None else None
+    def txt(tag):
+        el = prefs.find(tag) if prefs is not None else None
+        return (el.text or "").strip() if el is not None else ""
     return {
         "name": root.get("name"),
         "schemaversion": root.get("schemaversion"),
         "image": typ.get("image") if typ is not None else None,
         "flags": (typ.get("flags") if typ is not None else None) or "",
         "filesystem": typ.get("filesystem") if typ is not None else None,
+        "bootloader_theme": txt("bootloader-theme"),
+        "bootsplash_theme": txt("bootsplash-theme"),
         "repos": repos,
         "packages": pkgs,
         "ignores": ignores,
@@ -115,6 +120,39 @@ def check_requirements(d: dict) -> list[dict]:
         out.append({"check": f"live module declared ({' or '.join(alternatives)})",
                     "pass": bool(present),
                     "detail": why if not present else f"found {present[0]}"})
+    return out
+
+
+def check_themes(d: dict, desc_dir: Path) -> list[dict]:
+    """A declared theme that is not in the overlay kills the build mid-install.
+
+    kiwi applies the theme during the image build and stops with
+    "chroot: stderr: /usr/share/plymouth/themes/<name>/<name>.plymouth does not
+    exist". That cost a full ten-minute run to discover, and the answer is a
+    directory listing.
+    """
+    out = []
+    for kind, name in (("bootloader-theme", d["bootloader_theme"]),
+                       ("bootsplash-theme", d["bootsplash_theme"])):
+        if not name:
+            continue
+        roots = [desc_dir / "root", desc_dir]
+        found = False
+        for r in roots:
+            if not r.is_dir():
+                continue
+            for pat in (f"themes/{name}", f"{name}.plymouth", f"{name}.pf2", f"themes/{name}.pf2"):
+                if list(r.rglob(pat)):
+                    found = True
+                    break
+            if found:
+                break
+        out.append({"check": f"{kind} '{name}' exists in the overlay",
+                    "pass": found,
+                    "detail": ("found in the staged packages" if found else
+                               f"declared but not shipped — kiwi will fail with "
+                               f"'themes/{name}/{name}.plymouth does not exist'. "
+                               f"Either ship the theme or remove the declaration.")})
     return out
 
 
@@ -208,6 +246,7 @@ def main() -> int:
     checks = []
     checks += check_description(d)
     checks += check_requirements(d)
+    checks += check_themes(d, path.parent)
     checks += check_repos(d, args.timeout, args.skip_network)
     checks += check_packages_dnf(d, args.dnf)
 
@@ -222,7 +261,9 @@ def main() -> int:
         print(f"image       : {d['image']}  flags={d['flags'] or '-'}  fs={d['filesystem'] or '-'}")
         print(f"repos       : {len(d['repos'])}")
         print(f"packages    : {len(d['packages'])} in image, {len(d['ignores'])} ignored, "
-              f"{len(d['removed'])} removed\n")
+              f"{len(d['removed'])} removed")
+        print(f"themes      : bootloader={d['bootloader_theme'] or '-'} "
+              f"bootsplash={d['bootsplash_theme'] or '-'}\n")
         for c in checks:
             mark = "FAIL" if not c["pass"] else ("WARN" if c.get("warn") else "PASS")
             print(f"  {mark}  {c['check']}")

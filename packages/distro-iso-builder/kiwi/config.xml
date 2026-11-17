@@ -40,8 +40,14 @@
         <keytable>us</keytable>
         <timezone>Asia/Kolkata</timezone>
 
-        <bootloader-theme>distro</bootloader-theme>
-        <bootsplash-theme>distro</bootsplash-theme>
+        <!-- No bootloader-theme or bootsplash-theme here. Both pointed at a theme
+             called "distro" that does not exist: kaal-visual ships GRUB, GDM, GTK,
+             icon and Calamares themes, but no Plymouth theme at all. kiwi applies
+             these during the build and dies if the theme is missing —
+             "/usr/share/plymouth/themes/distro/distro.plymouth does not exist".
+             The GRUB theme is applied after install by kaal-visual's own script,
+             so nothing is lost by not declaring it here. -->
+
 
 
         <!-- Image type: live ISO. bootpartition was removed: schematron says it

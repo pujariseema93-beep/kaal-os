@@ -109,7 +109,8 @@
         <package name="@hardware-support"/>
         <package name="@base-x"/>
         <package name="@fonts"/>
-        <package name="@wayland"/>
+        <!-- @wayland was a comps group that Fedora 44 does not ship; the Wayland
+             libraries arrive as dependencies of the desktop packages. -->
         <package name="@kde-desktop"/>
         <package name="@gnome-desktop"/>
         <package name="@xfce-desktop"/>
@@ -152,11 +153,13 @@
         <package name="mangohud"/>
         <package name="gamescope"/>
         <package name="wine"/>
-        <package name="protonup-qt"/>
+        <!-- protonup-qt is not packaged for Fedora or RPM Fusion; it ships as a
+             Flatpak. Removed rather than left to fail the transaction. -->
 
         <!-- Installer -->
         <package name="calamares"/>
-        <package name="python3-pyqt5"/>
+        <!-- Fedora names the PyQt5 bindings python3-qt5, not python3-pyqt5. -->
+        <package name="python3-qt5"/>
 
         <!-- Filesystem -->
         <package name="btrfs-progs"/>

@@ -97,11 +97,30 @@ echo "=== schema self-check (xmllint against kiwi's own RelaxNG) ==="
 RNG=$(find / -name "kiwi.rng" -o -name "*.rng" -path "*kiwi*" 2>/dev/null | head -1)
 echo "schema: ${RNG:-not found}"
 if [ -n "$RNG" ] && command -v xmllint >/dev/null 2>&1; then
-    xmllint --noout --relaxng "$RNG" "$DESC/config.xml" \
-        && echo "schema check: PASSED" \
-        || echo "::error::schema check FAILED — the lines above name the problem"
+    if xmllint --noout --relaxng "$RNG" "$DESC/config.xml"; then
+        echo "schema check: PASSED"
+    else
+        # Stop here. An invalid description cannot produce a valid image, and
+        # continuing only moves the same failure five minutes further out.
+        echo "::error::schema check FAILED — the lines above name the problem"
+        exit 1
+    fi
 else
     echo "::warning::could not locate kiwi's schema, or xmllint missing — falling back to kiwi's own report"
+fi
+
+# ---- preflight: everything answerable without a build ----
+# Every failure this catches used to cost a full round trip: a repository that
+# 404s, a package name that does not exist, a missing dracut module. dnf is here
+# and the network is here, so ask the questions now instead of in five minutes.
+echo "=== preflight (before kiwi spends five minutes finding out) ==="
+if [ -f /workspace/scripts/kiwi_preflight.py ]; then
+    if ! python3 /workspace/scripts/kiwi_preflight.py "$DESC/config.xml" --dnf --timeout 20; then
+        echo "::error::preflight FAILED — fix the description, do not start the build"
+        exit 1
+    fi
+else
+    echo "::warning::scripts/kiwi_preflight.py not found — skipping preflight"
 fi
 
 # --debug: when schema validation fails, kiwi prints only a summary by default

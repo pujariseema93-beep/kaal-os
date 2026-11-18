@@ -106,3 +106,134 @@ jobs:
             kiwi-out/build/*.log
           if-no-files-found: warn
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Boot the thing. "An ISO exists" and "it boots" are different claims, and
+  # this project has already paid once for confusing a green report with a
+  # working system. The authority here is the display, not the serial log:
+  # grepping the log for a session name has matched package names and queued
+  # unit names before, and declared a machine booted while it was still in
+  # early boot.
+  # ---------------------------------------------------------------------------
+  boot-test:
+    name: Boot the ISO under UEFI
+    needs: build-kiwi
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the ISO from the build
+        uses: actions/download-artifact@v4
+        with:
+          name: kaal-os-live-iso-kiwi
+          path: dist
+
+      - name: Unpack and identify it
+        id: iso
+        run: |
+          cd dist
+          ls -lh
+          for z in *.zip; do [ -e "$z" ] && unzip -o -q "$z"; done
+          ISO=$(ls -S *.iso 2>/dev/null | head -1)
+          if [ -z "$ISO" ]; then echo "::error::no ISO in the artifact"; exit 1; fi
+          echo "iso=$PWD/$ISO" >> "$GITHUB_OUTPUT"
+          echo "iso_name=$ISO" >> "$GITHUB_OUTPUT"
+          ls -l "$ISO"
+          sha256sum "$ISO" || true
+          if [ -f "$ISO.sha256" ]; then echo "--- published checksum ---"; cat "$ISO.sha256"; fi
+
+      - name: Install QEMU and OVMF
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf python3-pil
+          # UEFI needs the writable vars store, which the package does not install.
+          cp /usr/share/OVMF/OVMF_VARS.fd ./OVMF_VARS.fd
+          qemu-img create -f qcow2 test-disk.qcow2 24G
+
+      - name: Start the VM
+        env:
+          ISO: ${{ steps.iso.outputs.iso }}
+        run: |
+          # accel=tcg: GitHub runners have no /dev/kvm, so this is full software
+          # emulation and it will be slow. 4 GB of RAM because the image carries
+          # five desktop environments and a toolchain.
+          qemu-system-x86_64 \
+            -name "kaal-kiwi-boot" \
+            -machine q35,accel=tcg \
+            -cpu max \
+            -smp 4 \
+            -m 4096 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd \
+            -drive if=pflash,format=raw,file=OVMF_VARS.fd \
+            -drive file=test-disk.qcow2,if=virtio,format=qcow2 \
+            -cdrom "$ISO" \
+            -boot d \
+            -vga virtio \
+            -monitor unix:mon.sock,server,nowait \
+            -serial file:serial.log \
+            -display none \
+            -daemonize
+          sleep 3
+          if ! pgrep -f qemu-system-x86_64 >/dev/null; then
+            echo "::error::QEMU exited immediately — the VM never started"
+            exit 1
+          fi
+          echo "VM running (pid $(pgrep -f qemu-system-x86_64 | head -1))"
+
+      - name: Wait for a graphical session
+        run: |
+          # Software emulation of a 5 GB live image: be generous, and be honest
+          # if it times out rather than calling it a pass.
+          python3 scripts/ci-visual-check.py \
+            --wait-graphical \
+            --monitor mon.sock \
+            --serial serial.log \
+            --timeout 1800 \
+            --interval 20 \
+            --outdir bootcheck
+
+      - name: Screenshot the result
+        if: always()
+        run: |
+          mkdir -p shots
+          # ask QEMU for one last frame regardless of how the check ended
+          python3 - <<'PY' || true
+          import socket, time, os
+          try:
+              s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+              s.connect("mon.sock"); time.sleep(0.3); s.recv(65536)
+              s.sendall(b"screendump shots/final.ppm\n"); time.sleep(1.5)
+              print(s.recv(65536).decode(errors="replace"))
+              s.close()
+          except Exception as e:
+              print("screendump failed:", e)
+          PY
+          python3 - <<'PY' || true
+          from PIL import Image
+          import glob, os
+          for p in glob.glob("shots/*.ppm") + glob.glob("bootcheck/*.ppm"):
+              try:
+                  im = Image.open(p); out = os.path.splitext(p)[0] + ".png"; im.save(out)
+                  cols = im.convert("RGB").getcolors(maxcolors=1000000)
+                  print(f"{out}: {im.size[0]}x{im.size[1]}, {len(cols) if cols else '>1M'} colours")
+              except Exception as e:
+                  print(p, "->", e)
+          PY
+          ls -l shots bootcheck 2>/dev/null || true
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiwi-boot-test
+          path: |
+            shots/
+            bootcheck/
+            serial.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop the VM
+        if: always()
+        run: pkill -f qemu-system-x86_64 || true

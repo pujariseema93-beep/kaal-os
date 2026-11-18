@@ -1,0 +1,135 @@
+name: Release (kiwi)
+
+# Publishes the most recent successful kiwi build as a GitHub Release.
+#
+# Why a separate workflow instead of a job inside the build: the build is green
+# and I am not going to put a tag-triggered code path inside the file that just
+# started working. This one reads the latest successful build's artifact and
+# publishes it, so tagging never risks the build.
+#
+# Why a release at all: an artifact expires, needs a login, and cannot be split.
+# A release is permanent, downloadable by anyone, and — split into parts under
+# GitHub's 2 GiB per-file limit — resumable on a bad connection.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (defaults to the ref that triggered this run)'
+        required: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish the ISO as a release
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the newest successful kiwi build
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list --workflow=build-iso-kiwi.yml --status=success \
+                     --limit=1 --json databaseId --jq '.[0].databaseId')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "::error::no successful kiwi build to publish"
+            exit 1
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "publishing from run $RUN_ID"
+          gh run view "$RUN_ID" --json headSha,createdAt,displayTitle --jq \
+            '"  \(.createdAt)  \(.headSha[0:7])  \(.displayTitle)"'
+
+      - name: Download its artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh run download "${{ steps.find.outputs.run_id }}" \
+             -n kaal-os-live-iso-kiwi -D dist
+          ls -lh dist
+
+      - name: Unpack and verify
+        id: iso
+        run: |
+          set -euo pipefail
+          cd dist
+          for z in *.zip; do [ -e "$z" ] && unzip -o -q "$z"; done
+          ISO=$(ls -S *.iso 2>/dev/null | head -1)
+          [ -n "$ISO" ] || { echo "::error::no ISO in the artifact"; exit 1; }
+          echo "iso=$ISO" >> "$GITHUB_OUTPUT"
+
+          # Verify against the checksum the build published. If they disagree the
+          # artefact is not the one that was built, and nothing should be released.
+          if [ -f "$ISO.sha256" ]; then
+            echo "published: $(cat "$ISO.sha256")"
+            echo "computed : $(sha256sum "$ISO")"
+            sha256sum -c "$ISO.sha256" || { echo "::error::checksum mismatch"; exit 1; }
+            echo "checksum verified"
+          else
+            echo "::warning::no published checksum; writing one now"
+            sha256sum "$ISO" > "$ISO.sha256"
+          fi
+          ISO_SHA=$(cut -d' ' -f1 "$ISO.sha256")
+          echo "sha=$ISO_SHA" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c%s "$ISO")" >> "$GITHUB_OUTPUT"
+
+      - name: Split into parts under 2 GiB
+        id: split
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          ISO="dist/${{ steps.iso.outputs.iso }}"
+          NAME=$(basename "$ISO")
+          split -b 1900M -d --suffix-length=2 "$ISO" "out/${NAME}.part-"
+          ( cd out && sha256sum ./*.part-* > SHA256SUMS && sha256sum -c SHA256SUMS >/dev/null )
+          cp "$ISO.sha256" "out/${NAME}.sha256"
+          PARTS=$(ls out/*.part-* | wc -l)
+          echo "parts=$PARTS" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          ls -lh out
+          cat out/SHA256SUMS
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: KAAL OS ${{ inputs.tag || github.ref_name }}
+          prerelease: true
+          fail_on_unmatched_files: true
+          files: |
+            out/*
+          body: |
+            **KAAL OS — live ISO, built with kiwi-ng.**
+
+            Built from `${{ github.sha }}` in run
+            [#${{ steps.find.outputs.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ steps.find.outputs.run_id }}),
+            boot-tested by the workflow that produced it.
+
+            | | |
+            |---|---|
+            | Base | Fedora 44 (x86_64) |
+            | ISO | `${{ steps.split.outputs.name }}` — ${{ steps.iso.outputs.size }} bytes |
+            | Parts | ${{ steps.split.outputs.parts }}, each under 2 GiB |
+            | SHA256 | `${{ steps.iso.outputs.sha }}` |
+
+            **Reassemble and write to a USB stick:**
+
+            ```sh
+            cat *.part-* > kaal-os.iso          # parts must be joined in order
+            sha256sum -c kaal-os.iso.sha256     # confirm the whole image
+            sudo dd if=kaal-os.iso of=/dev/sdX bs=4M status=progress oflag=sync
+            ```
+
+            **What is not in here:** the installer has never been run end to end,
+            the artwork is placeholder, and the AI control plane is design only.
+            This is a build to test, not a release to rely on.

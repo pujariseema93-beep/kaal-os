@@ -65,14 +65,32 @@ jobs:
             fedora:44 \
             bash /workspace/scripts/ci-kiwi-build.sh
 
+      - name: Stage the ISO where the uploader can read it
+        if: success()
+        run: |
+          # kiwi-out/build/image-root contains root-owned directories created by
+          # the chroot during the build. Uploading `kiwi-out/**/*.iso` makes the
+          # artifact action walk that tree and die on EACCES — the build had
+          # already succeeded by then. Copy the artefacts to a clean, runner-owned
+          # directory and upload from there.
+          mkdir -p dist
+          cp -v kiwi-out/*.iso dist/ 2>/dev/null || true
+          cp -v kiwi-out/*.iso.sha256 dist/ 2>/dev/null || true
+          # write a checksum if kiwi did not, so the release always has one
+          for f in dist/*.iso; do
+            [ -e "$f" ] || continue
+            base=$(basename "$f")
+            [ -f "dist/$base.sha256" ] || sha256sum "$f" > "dist/$base.sha256"
+          done
+          ls -lh dist/
+          cat dist/*.sha256 || true
+
       - name: Upload ISO
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: kaal-os-live-iso-kiwi
-          path: |
-            kiwi-out/**/*.iso
-            kiwi-out/**/*.iso.sha256
+          path: dist/*
           if-no-files-found: error
           retention-days: 14
 
@@ -80,9 +98,11 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
+          # no kiwi-out/build/ here: it is root-owned inside and the uploader
+          # fails on it. The logs are what matters.
           name: kiwi-build-log
           path: |
-            kiwi-out/**/*.log
-            kiwi-out/build/
+            kiwi-out/*.log
+            kiwi-out/build/*.log
           if-no-files-found: warn
           retention-days: 7

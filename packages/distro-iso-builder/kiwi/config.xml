@@ -109,6 +109,13 @@
         <ignore name="nano"/>
         <ignore name="nano-default-editor"/>
 
+        <!-- The kernel. None of the comps groups below pull one — @core does not
+             include a kernel for chroots — so the image built fine and then had
+             nothing to boot: "KiwiKernelLookupError: No kernel found in
+             .../image-root, searched for []". The empty list is kiwi saying it had
+             no kernel package to look for. -->
+        <package name="kernel"/>
+
         <!-- Base system -->
         <package name="@core"/>
         <package name="@standard"/>

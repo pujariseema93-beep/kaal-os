@@ -123,6 +123,25 @@ def check_requirements(d: dict) -> list[dict]:
     return out
 
 
+def check_kernel(d: dict) -> list[dict]:
+    """A bootable image with no kernel package builds and then cannot boot.
+
+    This is not hypothetical: the image installed 680 packages, reached ISO
+    assembly, and died with "No kernel found in .../image-root, searched for []".
+    None of the comps groups pull a kernel, so nothing did.
+    """
+    if d["image"] not in ("iso", "oem", "pxe", "kis", "btrfs", "xfs", "ext4"):
+        return []
+    kernels = [p for p in d["packages"]
+               if p.startswith("kernel") and not p.startswith("@")]
+    return [{"check": "a kernel package is declared",
+             "pass": bool(kernels),
+             "detail": (f"found {', '.join(sorted(set(kernels)))}" if kernels else
+                        "no kernel package in the list — kiwi will fail at boot image "
+                        "creation with 'No kernel found in image-root'. Comps groups do "
+                        "not pull a kernel; add e.g. <package name=\"kernel\"/>.")}]
+
+
 def check_themes(d: dict, desc_dir: Path) -> list[dict]:
     """A declared theme that is not in the overlay kills the build mid-install.
 
@@ -246,6 +265,7 @@ def main() -> int:
     checks = []
     checks += check_description(d)
     checks += check_requirements(d)
+    checks += check_kernel(d)
     checks += check_themes(d, path.parent)
     checks += check_repos(d, args.timeout, args.skip_network)
     checks += check_packages_dnf(d, args.dnf)

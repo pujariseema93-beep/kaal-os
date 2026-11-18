@@ -147,13 +147,29 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf python3-pil
-          # UEFI needs the writable vars store, which the package does not install.
-          cp /usr/share/OVMF/OVMF_VARS.fd ./OVMF_VARS.fd
+
+          # Ubuntu 26.04 restructured the OVMF packages: it now ships ovmf-generic,
+          # ovmf-amdsev and ovmf-inteltdx, and /usr/share/OVMF/OVMF_VARS.fd is gone.
+          # Hardcoding a firmware path a distribution is free to move is the bug;
+          # discover it, and say what was found if discovery fails.
+          CODE=$(find /usr/share -name 'OVMF_CODE*.fd' 2>/dev/null | head -1)
+          VARS=$(find /usr/share -name 'OVMF_VARS*.fd' 2>/dev/null | head -1)
+          echo "OVMF_CODE=$CODE"
+          echo "OVMF_VARS=$VARS"
+          if [ -z "$CODE" ] || [ -z "$VARS" ]; then
+            echo "::error::no OVMF firmware found. Candidates:"
+            find /usr/share -iname '*ovmf*' 2>/dev/null | head -20
+            exit 1
+          fi
+          cp "$VARS" ./OVMF_VARS.fd
+          echo "OVMF_CODE=$CODE" >> "$GITHUB_ENV"
+
           qemu-img create -f qcow2 test-disk.qcow2 24G
 
       - name: Start the VM
         env:
           ISO: ${{ steps.iso.outputs.iso }}
+          OVMF_CODE: ${{ env.OVMF_CODE }}
         run: |
           # accel=tcg: GitHub runners have no /dev/kvm, so this is full software
           # emulation and it will be slow. 4 GB of RAM because the image carries
@@ -164,7 +180,7 @@ jobs:
             -cpu max \
             -smp 4 \
             -m 4096 \
-            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd \
+            -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
             -drive if=pflash,format=raw,file=OVMF_VARS.fd \
             -drive file=test-disk.qcow2,if=virtio,format=qcow2 \
             -cdrom "$ISO" \

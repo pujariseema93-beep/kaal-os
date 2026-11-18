@@ -301,8 +301,14 @@ jobs:
           #   "Could not open 'OVMF_VARS.fd': No such file or directory"
           # and, if that is swallowed, the boot check then waits five minutes on
           # a serial log that can never appear.
-          OVMF_CODE=/usr/share/OVMF/OVMF_CODE.fd
-          cp /usr/share/OVMF/OVMF_VARS.fd ./OVMF_VARS.fd
+          # Ubuntu 26.04 moved the firmware: /usr/share/OVMF/OVMF_VARS.fd no
+          # longer exists. Discover it rather than assume a path.
+          OVMF_CODE=$(find /usr/share -name 'OVMF_CODE*.fd' 2>/dev/null | head -1)
+          OVMF_VARS=$(find /usr/share -name 'OVMF_VARS*.fd' 2>/dev/null | head -1)
+          echo "OVMF_CODE=$OVMF_CODE"; echo "OVMF_VARS=$OVMF_VARS"
+          [ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] || {
+            echo "::error::no OVMF firmware found"; find /usr/share -iname '*ovmf*' | head -20; exit 1; }
+          cp "$OVMF_VARS" ./OVMF_VARS.fd
 
           # Start QEMU in background. RAM and vCPU come from the selection step
           # (the full live ISO needs more of both than the smoke ISO).

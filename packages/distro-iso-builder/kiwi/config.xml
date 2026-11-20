@@ -56,7 +56,7 @@
             image="iso"
             filesystem="btrfs"
             firmware="uefi"
-            kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0"
+            kernelcmdline="loglevel=3 systemd.show_status=0 vt.global_cursor_default=0 plymouth.enable=0"
             hybridpersistent="true"
             hybridpersistent_filesystem="ext4"
             fsmountoptions="compress=zstd:3"
@@ -154,7 +154,6 @@
         <package name="wireplumber"/>
 
         <!-- GPU drivers -->
-        <package name="akmod-nvidia"/>
         <package name="mesa-vulkan-drivers"/>
         <package name="mesa-dri-drivers"/>
         <package name="vulkan-tools"/>

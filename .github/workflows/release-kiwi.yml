@@ -71,9 +71,11 @@ jobs:
           # Verify against the checksum the build published. If they disagree the
           # artefact is not the one that was built, and nothing should be released.
           if [ -f "$ISO.sha256" ]; then
-            echo "published: $(cat "$ISO.sha256")"
-            echo "computed : $(sha256sum "$ISO")"
-            sha256sum -c "$ISO.sha256" || { echo "::error::checksum mismatch"; exit 1; }
+                        PUB=$(cut -d' ' -f1 "$ISO.sha256" | tr -d '\r\n')
+            GOT=$(sha256sum "$ISO" | cut -d' ' -f1)
+            echo "published: $PUB"
+            echo "computed : $GOT"
+            [ "$PUB" = "$GOT" ] || { echo "::error::checksum mismatch"; exit 1; }
             echo "checksum verified"
           else
             echo "::warning::no published checksum; writing one now"
